@@ -6,10 +6,10 @@ class BillDemo {
 
     companion object {
 
-        fun testBill() {
+        fun testBill(userId: String, password: String) {
             val epayAuth = EpayAuth()
             val isSuccess =
-                epayAuth.login("", "")
+                epayAuth.login(userId, password)
             println(isSuccess)
             if (!isSuccess) {
                 println("Login failed!")

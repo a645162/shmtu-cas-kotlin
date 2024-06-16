@@ -7,11 +7,11 @@ import okhttp3.Request
 
 class EpayAuth {
 
-    private var savedCookie = ""
-    private var htmlCode = ""
+    private var _epayCookie = ""
+    private var _htmlCode = ""
 
-    private var loginUrl = ""
-    private var loginCookie = ""
+    private var _loginUrl = ""
+    private var _loginCookie = ""
 
     fun getBill(
         pageNo: String = "1",
@@ -29,7 +29,7 @@ class EpayAuth {
             .build()
 
         val finalCookie = cookie.ifBlank {
-            this.savedCookie
+            this._epayCookie
         }
 
         val request = Request.Builder()
@@ -43,9 +43,9 @@ class EpayAuth {
         val responseCode = response.code
 
         return if (responseCode == 200) {
-            this.htmlCode = (response.body?.string() ?: "").trim()
+            this._htmlCode = (response.body?.string() ?: "").trim()
 
-            Triple(responseCode, this.htmlCode, cookie)
+            Triple(responseCode, this._htmlCode, cookie)
         } else if (responseCode == 302) {
             val location =
                 response.header("Location") ?: ""
@@ -61,7 +61,7 @@ class EpayAuth {
                 }
             }
 
-            this.savedCookie = newCookie
+            this._epayCookie = newCookie
 
             Triple(responseCode, location, newCookie)
         } else {
@@ -71,15 +71,15 @@ class EpayAuth {
 
     fun testLoginStatus(): Boolean {
         val resultBill =
-            getBill(cookie = this.savedCookie)
+            getBill(cookie = this._epayCookie)
 
         if (resultBill.first == 200) {
             // OK
             return true
         } else if (resultBill.first == 302) {
-            this.loginUrl =
+            this._loginUrl =
                 resultBill.second
-            this.savedCookie =
+            this._epayCookie =
                 resultBill.third
 
             return false
@@ -93,7 +93,7 @@ class EpayAuth {
         password: String
     ): Boolean {
 
-        if (this.loginUrl.isBlank() || this.savedCookie.isBlank()) {
+        if (this._loginUrl.isBlank() || this._epayCookie.isBlank()) {
             if (testLoginStatus()) {
                 return true
             }
@@ -101,14 +101,14 @@ class EpayAuth {
 
         val executionStr =
             CasAuth.getExecution(
-                this.loginUrl,
-                this.savedCookie
+                this._loginUrl,
+                this._epayCookie
             )
 
         // 下载验证码
         val resultCaptcha =
             Captcha.getImageDataFromUrlUsingGet(
-                cookie = this.savedCookie
+                cookie = this._loginCookie
             )
 
         // 检验下载的数据
@@ -117,7 +117,7 @@ class EpayAuth {
             return false
         }
         val imageData = resultCaptcha.first
-        this.loginCookie = resultCaptcha.second
+        this._loginCookie = resultCaptcha.second
         if (imageData == null) {
             println("获取验证码失败")
             return false
@@ -134,12 +134,12 @@ class EpayAuth {
 
         val resultCas =
             CasAuth.casLogin(
-                this.loginUrl,
+                this._loginUrl,
                 username,
                 password,
                 exprResult,
                 executionStr,
-                this.loginCookie
+                this._loginCookie
             )
 
         if (resultCas.first != 302) {
@@ -147,12 +147,12 @@ class EpayAuth {
             return false
         }
 
-        this.loginCookie = resultCas.third
+        this._loginCookie = resultCas.third
 
         val resultRedirect =
             CasAuth.casRedirect(
                 resultCas.second,
-                this.savedCookie
+                this._epayCookie
             )
 
         if (resultRedirect.first != 302) {
@@ -162,7 +162,7 @@ class EpayAuth {
         }
 
         val resultBill =
-            getBill(cookie = this.savedCookie)
+            getBill(cookie = this._epayCookie)
 
         return resultBill.first == 200
     }
