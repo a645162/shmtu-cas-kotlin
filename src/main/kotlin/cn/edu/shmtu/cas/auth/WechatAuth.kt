@@ -39,7 +39,7 @@ class WechatAuth {
         val responseCode = response.code
 
         return if (response.isSuccessful) {
-            val responseText = response.body?.string() ?: ""
+            val responseText = response.body.string()
             Triple(responseCode, responseText, "")
         } else {
             if (responseCode == 302) {
@@ -146,7 +146,7 @@ class WechatAuth {
 
         val validateCode: String =
             Captcha.ocrByRemoteTcpServer(
-                "127.0.0.1", 21601,
+                Captcha.ocrHost, Captcha.ocrPort,
                 imageData
             )
         val exprResult =

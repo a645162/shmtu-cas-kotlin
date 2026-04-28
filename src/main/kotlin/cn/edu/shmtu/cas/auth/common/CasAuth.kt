@@ -32,7 +32,7 @@ class CasAuth {
             val responseCode = response.code
 
             return if (responseCode == 200) {
-                val htmlCode = response.body?.string() ?: ""
+                val htmlCode = response.body.string()
                 val document: Document = Jsoup.parse(htmlCode)
                 val element: Element? =
                     document.selectFirst("input[name=execution]")
@@ -96,7 +96,7 @@ class CasAuth {
 
                 Triple(responseCode, location, newCookie)
             } else {
-                val htmlCode = response.body?.string() ?: ""
+                val htmlCode = response.body.string()
                 val document: Document = Jsoup.parse(htmlCode)
                 val element: Element? =
                     document.selectFirst("#loginErrorsPanel")

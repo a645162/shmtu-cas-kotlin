@@ -43,7 +43,7 @@ class EpayAuth {
         val responseCode = response.code
 
         return if (responseCode == 200) {
-            this._htmlCode = (response.body?.string() ?: "").trim()
+            this._htmlCode = response.body.string().trim()
 
             Triple(responseCode, this._htmlCode, cookie)
         } else if (responseCode == 302) {
@@ -123,10 +123,9 @@ class EpayAuth {
             return false
         }
 
-        // 调用远端识别接口
         val validateCode: String =
             Captcha.ocrByRemoteTcpServer(
-                "127.0.0.1", 21601,
+                Captcha.ocrHost, Captcha.ocrPort,
                 imageData
             )
         val exprResult =

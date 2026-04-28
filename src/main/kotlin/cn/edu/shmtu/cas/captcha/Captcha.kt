@@ -5,7 +5,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.File
 import java.net.Socket
-import java.net.URL
+import java.net.URI
 import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -14,11 +14,20 @@ import javax.imageio.ImageIO
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.IOException
+import java.net.ConnectException
 import java.net.SocketTimeoutException
 
 class Captcha {
 
     companion object {
+
+        var ocrHost: String = "127.0.0.1"
+        var ocrPort: Int = 21601
+
+        fun setOcrServer(host: String, port: Int = 21601) {
+            ocrHost = host
+            ocrPort = port
+        }
 
         fun readImageFromFile(fileName: String): ByteArray {
             // Read image from file
@@ -65,7 +74,7 @@ class Captcha {
         fun getImageDataFromUrl(
             imageUrl: String = "https://cas.shmtu.edu.cn/cas/captcha"
         ): ByteArray {
-            val url = URL(imageUrl)
+            val url = URI(imageUrl).toURL()
             val inputStream = BufferedInputStream(url.openStream())
             val outputStream = ByteArrayOutputStream()
             val buffer = ByteArray(1024)
@@ -109,7 +118,7 @@ class Captcha {
                 val returnCookie =
                     response.headers["Set-Cookie"] ?: (cookie ?: "")
 
-                return Pair(response.body?.bytes(), returnCookie)
+                return Pair(response.body.bytes(), returnCookie)
             } catch (e: IOException) {
                 println("请求失败：${e.message}")
                 return null
@@ -120,30 +129,37 @@ class Captcha {
             host: String, port: Int,
             imageData: ByteArray
         ): String {
-            Socket(host, port).use { socket ->
-                // 设置超时时间为 5 秒
-                // socket.setSoTimeout(5000)
+            try {
+                Socket(host, port).use { socket ->
+                    // 设置超时时间为 5 秒
+                    // socket.setSoTimeout(5000)
 
-                val outputStream = socket.getOutputStream()
-                val dataOutputStream = DataOutputStream(outputStream)
+                    val outputStream = socket.getOutputStream()
+                    val dataOutputStream = DataOutputStream(outputStream)
 
-                // 发送图像数据
-                dataOutputStream.write(imageData)
-                dataOutputStream.flush()
+                    // 发送图像数据
+                    dataOutputStream.write(imageData)
+                    dataOutputStream.flush()
 
-                // 发送特殊标记，表示图像数据发送完毕
-                val endMarker = "<END>".toByteArray(Charsets.UTF_8)
-                outputStream.write(endMarker)
-                outputStream.flush()
+                    // 发送特殊标记，表示图像数据发送完毕
+                    val endMarker = "<END>".toByteArray(Charsets.UTF_8)
+                    outputStream.write(endMarker)
+                    outputStream.flush()
 
-                try {
-                    val inputStream = socket.getInputStream()
-                    val response = inputStream.readBytes().toString(Charsets.UTF_8)
-                    return response
-                } catch (e: SocketTimeoutException) {
-                    // 超时，返回空字符串
-                    return ""
+                    try {
+                        val inputStream = socket.getInputStream()
+                        val response = inputStream.readBytes().toString(Charsets.UTF_8)
+                        return response
+                    } catch (e: SocketTimeoutException) {
+                        // 超时，返回空字符串
+                        return ""
+                    }
                 }
+            } catch (e: ConnectException) {
+                println("[Captcha OCR] 连接远程验证码识别服务器失败！")
+                println("[Captcha OCR] 目标地址: $host:$port")
+                println("[Captcha OCR] 错误信息: ${e.message}")
+                throw e
             }
         }
 
@@ -182,8 +198,8 @@ class Captcha {
         }
 
         fun testLocalTcpServerOcr(
-            ip: String = "127.0.0.1",
-            port: Int = 21601,
+            ip: String = ocrHost,
+            port: Int = ocrPort,
         ) {
             println("识别验证码 Test")
             val resultCaptcha =

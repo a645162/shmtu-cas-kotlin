@@ -1,9 +1,13 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="MainKt" type="JetRunConfigurationType" nameIsGenerated="true">
+    <envs>
+      <env name="SHMTU_PASSWORD" value="1999520@Khm" />
+      <env name="SHMTU_USER_ID" value="202330510052" />
+      <env name="SHMTU_OCR_HOST" value="test.329509.xyz" />
+    </envs>
     <option name="MAIN_CLASS_NAME" value="cn.edu.shmtu.cas.MainKt" />
     <module name="shmtu-cas-kotlin.main" />
     <shortenClasspath name="NONE" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <extension name="net.ashald.envfile">
       <option name="IS_ENABLED" value="false" />
       <option name="IS_SUBST" value="false" />

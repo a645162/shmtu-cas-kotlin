@@ -16,6 +16,13 @@
 
 注：这个项目为王老师的研究生课程《机器视觉》的课程设计项目，仅用作学习用途！！！
 
+### Linux端口转发
+
+```bash
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo iptables -t nat -A PREROUTING -p tcp --dport 21601 -j DNAT --to-destination x:21601
+```
+
 ### 统一认证登录流程(数字平台+微信平台)
 
 * Kotlin版(方便移植Android)
