@@ -7,6 +7,7 @@ import cn.edu.shmtu.cas.captcha.Captcha
 fun main() {
 
     val userId = System.getenv("SHMTU_USER_ID")
+        ?: System.getenv("SHMTU_USERNAME")
     val password = System.getenv("SHMTU_PASSWORD")
     val maskedPassword = password?.let { "*".repeat(it.length) } ?: ""
 
