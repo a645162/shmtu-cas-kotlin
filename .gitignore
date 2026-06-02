@@ -1,3 +1,6 @@
+# Vibe Coding
+.omc/
+
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
@@ -42,3 +45,8 @@ bin/
 .DS_Store
 
 *.png
+
+# VitePress docs
+node_modules/
+Documents/docs/.vitepress/dist/
+Documents/docs/.vitepress/cache/
