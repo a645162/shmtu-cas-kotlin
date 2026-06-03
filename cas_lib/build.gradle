@@ -2,6 +2,11 @@ plugins {
     id 'org.jetbrains.kotlin.jvm'
     id 'org.jetbrains.kotlin.plugin.serialization'
     id 'java-library'
+    id 'maven-publish'
+}
+
+java {
+    withSourcesJar()
 }
 
 dependencies {
@@ -12,5 +17,21 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(17)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            groupId = project.group
+            artifactId = 'shmtu-cas-jvm'
+            version = project.version
+
+            pom {
+                name = 'SHMTU CAS JVM Library'
+                description = 'JVM library for SHMTU CAS login and bill querying.'
+            }
+        }
+    }
 }

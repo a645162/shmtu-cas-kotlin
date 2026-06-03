@@ -5,8 +5,8 @@ plugins {
 }
 
 subprojects {
-    group = 'cn.edu.shmtu.cas'
-    version = '1.0-SNAPSHOT'
+    group = System.getenv("GROUP") ?: 'cn.edu.shmtu.cas'
+    version = System.getenv("VERSION") ?: '1.0-SNAPSHOT'
 
     repositories {
         google()

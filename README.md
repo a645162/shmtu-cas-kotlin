@@ -80,3 +80,127 @@ Python+Selenium4自动化测试数字海大平台登录流程
 本(系列)项目为个人开发，与上海海事大学无关，仅供学习参考，请勿用于非法用途。
 
 本(系列)项目为孔昊旻同学的**课程设计**项目，仅用作学习用途！！！
+
+## JitPack
+
+本项目现在可通过 JitPack 同时获取 JVM `jar` 和 Android `aar`。
+
+产物坐标:
+
+* JVM库
+  `com.github.a645162.shmtu-cas-kotlin:shmtu-cas-jvm:<tag>`
+* Android库
+  `com.github.a645162.shmtu-cas-kotlin:shmtu-cas-android:<tag>`
+
+其中 `<tag>` 可以是 Git tag、commit hash，或分支快照例如 `master-SNAPSHOT`。
+
+### Gradle Kotlin DSL
+
+`settings.gradle.kts`:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+`build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("com.github.a645162.shmtu-cas-kotlin:shmtu-cas-jvm:<tag>")
+}
+```
+
+Android 项目:
+
+```kotlin
+dependencies {
+    implementation("com.github.a645162.shmtu-cas-kotlin:shmtu-cas-android:<tag>")
+}
+```
+
+### Gradle Groovy DSL
+
+`settings.gradle`:
+
+```gradle
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
+}
+```
+
+`build.gradle`:
+
+```gradle
+dependencies {
+    implementation 'com.github.a645162.shmtu-cas-kotlin:shmtu-cas-jvm:<tag>'
+}
+```
+
+Android 项目:
+
+```gradle
+dependencies {
+    implementation 'com.github.a645162.shmtu-cas-kotlin:shmtu-cas-android:<tag>'
+}
+```
+
+### Maven
+
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+
+<dependencies>
+    <dependency>
+        <groupId>com.github.a645162.shmtu-cas-kotlin</groupId>
+        <artifactId>shmtu-cas-jvm</artifactId>
+        <version>&lt;tag&gt;</version>
+    </dependency>
+</dependencies>
+```
+
+Android AAR:
+
+```xml
+<dependency>
+    <groupId>com.github.a645162.shmtu-cas-kotlin</groupId>
+    <artifactId>shmtu-cas-android</artifactId>
+    <version>&lt;tag&gt;</version>
+</dependency>
+```
+
+### 说明
+
+* `shmtu-cas-jvm` 是纯 JVM `jar`，适合 Java/Kotlin 后端、桌面端。
+* `shmtu-cas-android` 是 Android `aar`，适合 Android App。
+* 两个库保持同一套 `cn.edu.shmtu.cas.*` 包名和主要 API。
+* Android 项目建议同时保留 `google()` 与 `mavenCentral()` 仓库配置。
+
+### 示例
+
+```kotlin
+import cn.edu.shmtu.cas.auth.EpayAuth
+import cn.edu.shmtu.cas.captcha.RemoteOcrHttpCaptchaResolver
+
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+val auth = EpayAuth(resolver)
+```
+
+可根据业务切换为:
+
+```kotlin
+implementation("com.github.a645162.shmtu-cas-kotlin:shmtu-cas-jvm:<tag>")
+implementation("com.github.a645162.shmtu-cas-kotlin:shmtu-cas-android:<tag>")
+```
