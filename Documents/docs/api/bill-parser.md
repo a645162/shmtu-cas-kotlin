@@ -1,116 +1,139 @@
 ---
-title: BillParser API 参考
+title: BillParser
 ---
 
-# BillParser API 参考
+# BillParser
 
-`BillParser` 用于解析 Epay 一卡通消费账单页面的 HTML，提取结构化的消费记录。位于 `cn.edu.shmtu.cas.parser` 包。
+`BillParser` 把 Epay 账单页 HTML 解析为强类型 `BillItem` 列表。
 
-## 构造函数
+`cn.edu.shmtu.cas.parser.BillParser`
+
+## BillParseResult
 
 ```kotlin
-class BillParser()
+data class BillParseResult(
+    val bills: List<BillItem>,
+    val totalPages: Int
+)
 ```
 
-默认构造函数创建空的解析器，后续需要调用 `getBillTr()` 传入 HTML 数据。
+## 核心方法
 
----
+### parseBillPage
 
-## getBillTr
+```kotlin
+fun parseBillPage(htmlCode: String): BillParseResult
+```
 
-解析账单页面 HTML，提取账单表格行元素。
+一次性解析整页：账单 + 总页数。
+
+### parseBillItems
+
+```kotlin
+fun parseBillItems(htmlCode: String): List<BillItem>   // 解析 HTML
+fun parseBillItems(): List<BillItem>                    // 解析已加载的 tr
+```
+
+返回强类型 `List<BillItem>`，含 `timestamp` 方便排序。
+
+### getBillList (HashMap 形态，向后兼容)
+
+```kotlin
+fun getBillList(htmlCode: String): MutableList<HashMap<String, String>>
+fun getBillList(): MutableList<HashMap<String, String>>
+```
+
+| 键 | 含义 |
+|----|------|
+| `dateStr` | 原始日期 |
+| `timeStr` | 原始时间 |
+| `timeStrFormat` | `HH:mm:ss` |
+| `dateTimeStrFormat` | `yyyy.MM.dd HH:mm:ss` |
+| `type` | 交易类型 |
+| `number` | 交易号 |
+| `targetUser` | 对方账户 |
+| `money` | 金额字符串 |
+| `method` | 支付方式 |
+| `status` | 状态枚举名 |
+
+### getBillTr
 
 ```kotlin
 fun getBillTr(htmlCode: String): BillParser
 ```
 
-### 参数
+链式：`BillParser().getBillTr(html).getBillList()`
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| htmlCode | String | 账单页面 HTML 内容 |
-
-### 返回值
-
-`BillParser` - 返回自身，支持链式调用。
-
-### 说明
-
-- 使用 Jsoup 解析 HTML
-- 查找 `#aazone.zone_show_box_1 > table > tbody` 下的所有 `tr` 元素
-- 每行必须包含 7 个子元素（列），否则会被跳过
-
----
-
-## getBillList
-
-获取解析后的账单列表。
-
-```kotlin
-fun getBillList(): MutableList<HashMap<String, String>>
-```
-
-### 返回值
-
-`MutableList<HashMap<String, String>>` - 消费记录列表，每条记录为一个 HashMap。
-
-### 字段说明
-
-| 键 | 说明 | 示例 |
-|------|------|------|
-| dateStr | 日期（原始格式） | `"2026-04-29"` |
-| timeStr | 时间（原始格式） | `"143025"` |
-| timeStrFormat | 时间（格式化） | `"14:30:25"` |
-| dateTimeStrFormat | 日期+时间 | `"2026-04-29 14:30:25"` |
-| type | 交易类型 | `"消费"` |
-| number | 交易号 | `"1234567890"` |
-| targetUser | 目标用户 | `"食堂一楼"` |
-| money | 金额 | `"12.50"` |
-| method | 交易方式 | `"刷卡"` |
-| status | 交易状态 | `"成功"` |
-
----
-
-## getPageCount
-
-获取账单总页数。
+### getPageCount
 
 ```kotlin
 fun getPageCount(htmlCode: String): Int
 ```
 
-### 参数
+从分页控件提取总页数，解析失败返回 `1`。
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| htmlCode | String | 账单页面 HTML 内容 |
+## BillItem 字段
 
-### 返回值
+详见 [数据类型 → BillItem](/api/datatype#billitem)。
 
-`Int` - 总页数。解析失败返回 -1。
+## CSV 导出
 
-### 说明
+### CsvExporter
 
-从分页控件中解析总页数，查找格式如 `"X/Y页 首页"` 的文本。
+```kotlin
+class CsvExporter(
+    private val headers: List<String> = DEFAULT_HEADERS,
+    private val fields: List<String> = DEFAULT_FIELDS
+)
+```
 
----
+默认表头：
+
+| 表头 | 字段 |
+|------|------|
+| 日期 | `date_str` |
+| 时间 | `time_str` |
+| 时间(格式化) | `time_str_formatted` |
+| 日期时间 | `date_time_formatted` |
+| 时间戳 | `timestamp` |
+| 交易名称 | `item_type` |
+| 交易号 | `number` |
+| 对方 | `target_user` |
+| 金额 | `money_str` |
+| 付款方式 | `method` |
+| 状态 | `status` |
+
+方法：
+
+```kotlin
+fun export(path: String, bills: List<BillItem>)          // 写文件
+fun toCsvString(bills: List<BillItem>): String            // 返回字符串
+```
+
+支持自定义表头与字段：
+
+```kotlin
+CsvExporter()
+    .let { it.export("simple.csv", bills) }   // 默认
+
+val custom = CsvExporter(
+    headers = listOf("日期", "金额", "商户"),
+    fields = listOf("date_time_formatted", "money_str", "target_user")
+)
+custom.export("simple.csv", bills)
+```
 
 ## 使用示例
 
 ```kotlin
+val html = epay.getBill(pageNo = 1, billType = BillType.ALL).getOrThrow()
 val parser = BillParser()
+val items = parser.parseBillItems(html)
+val totalPages = parser.getPageCount(html)
 
-// 链式调用
-val billList = parser
-    .getBillTr(htmlContent)
-    .getBillList()
+println("总页数: $totalPages, 本页 ${items.size} 条")
+items.forEach { println(it) }
 
-// 遍历账单
-for (bill in billList) {
-    println("${bill["dateTimeStrFormat"]} | ${bill["type"]} | ${bill["money"]}元")
-}
-
-// 获取总页数
-val totalPages = parser.getPageCount(htmlContent)
-println("总页数: $totalPages")
+// 导出 CSV
+CsvExporter().export("bills_${System.currentTimeMillis()}.csv", items)
 ```

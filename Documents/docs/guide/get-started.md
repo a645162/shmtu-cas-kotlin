@@ -6,102 +6,121 @@ title: 快速开始
 
 ## 环境要求
 
-- **JDK 21+**：本项目使用 Kotlin JVM，需要 Java 21 或更高版本
-- **Gradle**：项目已包含 Gradle Wrapper，无需单独安装
-- **OCR 推理服务器**（可选）：如需验证码自动识别，需部署 [shmtu-cas-ocr-server](https://github.com/a645162/shmtu-cas-ocr-server)
+- **JDK 17+**（建议 21）：Kotlin 2.2 + Gradle 8+，已开启 JVM toolchain 17
+- **Gradle**：仓库自带 `gradlew`，无需单独安装
+- **OCR 推理服务器**（可选）：如需验证码自动识别，可部署 [shmtu-cas-ocr-server](https://github.com/a645162/shmtu-cas-ocr-server)，TCP 模式默认端口 `21601`、HTTP 模式默认 `5000`
 
-## 克隆项目
+## 克隆与构建
 
 ```bash
 git clone https://github.com/a645162/shmtu-cas-kotlin.git
 cd shmtu-cas-kotlin
-```
-
-## 构建项目
-
-项目使用 Gradle 构建，首次构建会自动下载依赖：
-
-```bash
 ./gradlew build
 ```
 
-主要依赖包括：
+主要依赖：
 
 | 依赖 | 版本 | 用途 |
 |------|------|------|
-| Kotlin | 2.3.21 | 编程语言 |
+| Kotlin | 2.2.10 | 编程语言 |
 | OkHttp | 5.3.2 | HTTP 客户端 |
 | Jsoup | 1.22.2 | HTML 解析 |
+| kotlinx-coroutines-core | 1.11.0 | suspend 协程 |
+| kotlinx-serialization-json | 1.11.0 | Cookie JSON 序列化 |
 
-## 配置 OCR 服务器
+## 子项目
 
-验证码识别依赖远程 OCR 推理服务器。默认连接 `127.0.0.1:21601`，可通过环境变量修改：
-
-```bash
-export SHMTU_OCR_HOST=127.0.0.1
-export SHMTU_OCR_PORT=21601
+```
+shmtu-cas-kotlin/
+├── cas_lib/            # 纯 JVM 库 cn.edu.shmtu.cas.*
+├── cas_android_lib/    # Android 库（复用 cas_lib 源码）
+├── cas_cli/            # 命令行工具
+└── Documents/docs/     # VitePress 文档
 ```
 
-也可以在代码中动态配置：
+详细结构见 [模块与子项目](/guide/modules)。
+
+## 最简登录 + 同步
 
 ```kotlin
-Captcha.setOcrServer("192.168.1.100", 21601)
-```
+import cn.edu.shmtu.cas.auth.EpayAuth
+import cn.edu.shmtu.cas.captcha.RemoteOcrHttpCaptchaResolver
+import cn.edu.shmtu.cas.datatype.BillItem
+import cn.edu.shmtu.cas.sync.BillStore
+import cn.edu.shmtu.cas.sync.SyncOptions
+import cn.edu.shmtu.cas.sync.incrementalSync
+import kotlinx.coroutines.runBlocking
 
-## 运行示例
+fun main() = runBlocking {
+    val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+    val epay = EpayAuth(resolver)
 
-项目入口类为 `cn.edu.shmtu.cas.MainKt`，通过环境变量传入用户名和密码：
+    when (val r = epay.submitLogin("学号", "密码")) {
+        is cn.edu.shmtu.cas.session.LoginSubmitResult.Success -> println("登录成功")
+        is cn.edu.shmtu.cas.session.LoginSubmitResult.PasswordError -> error("密码错误")
+        is cn.edu.shmtu.cas.session.LoginSubmitResult.ValidateCodeError -> error("验证码错误")
+        is cn.edu.shmtu.cas.session.LoginSubmitResult.Failure -> error(r.message)
+    }
 
-```bash
-export SHMTU_USER_ID=你的学号
-export SHMTU_PASSWORD=你的密码
-./gradlew run
-```
+    val store = object : BillStore {
+        override fun contains(transactionNo: String) = false
+        override fun merge(newBills: List<BillItem>) = newBills.forEach(::println)
+    }
 
-## 项目结构
-
-```
-src/main/kotlin/cn/edu/shmtu/cas/
-├── Main.kt                  # 程序入口
-├── HtmlCommon.kt            # HTML 工具类
-├── auth/
-│   ├── common/
-│   │   ├── CasAuth.kt       # CAS 认证核心逻辑
-│   │   └── CasAuthStatus.kt # 认证状态枚举
-│   ├── EpayAuth.kt          # Epay 一卡通认证
-│   └── WechatAuth.kt        # 微信平台认证
-├── captcha/
-│   └── Captcha.kt           # 验证码下载与 OCR 识别
-├── parser/
-│   ├── BillParser.kt        # 账单 HTML 解析器
-│   └── HotWaterParser.kt    # 热水信息 HTML 解析器
-└── demo/
-    ├── BillDemo.kt          # 账单查询示例
-    └── HotWaterDemo.kt      # 热水查询示例
-```
-
-## 基本使用
-
-### Epay 账单查询
-
-```kotlin
-val epayAuth = EpayAuth()
-val isSuccess = epayAuth.login(userId, password)
-if (isSuccess) {
-    val billResult = epayAuth.getBill(pageNo = "1")
-    println(billResult.first)   // 状态码
-    println(billResult.second)  // HTML 内容
+    incrementalSync(epay, store, SyncOptions(maxPages = 20)) { p ->
+        println("page=${p.page} new=${p.newCount} total=${p.totalFetched}")
+    }
 }
 ```
 
-### 微信平台热水查询
+## 三阶段登录（手动 challenge）
 
 ```kotlin
-val wechatAuth = WechatAuth()
-wechatAuth.login(userId, password)
-val hotWaterResult = wechatAuth.getHotWater()
-println(hotWaterResult.first)   // 状态码
-println(hotWaterResult.second)  // 热水信息
+val epay = EpayAuth()
+
+// 1. 探测
+when (val probe = epay.probeLogin().getOrThrow()) {
+    is SessionProbe.AlreadyLoggedIn -> {} // 已登录
+    is SessionProbe.NeedLogin -> {}       // 需要登录
+}
+
+// 2. 准备 challenge（含 execution + 验证码图片）
+val challenge = epay.prepareChallenge().getOrThrow()
+
+// 3. 解析验证码（由你决定：弹窗、OCR、手动...）
+val answer = myResolver.resolve(challenge.captchaImage).getOrThrow().intoFinalAnswer().value
+
+// 4. 提交
+val result = epay.submitLogin("学号", "密码", answer, challenge.execution).getOrThrow()
 ```
 
-详细使用方法请参阅后续章节。
+## OCR 服务器配置
+
+| 场景 | 解析器 | 默认地址 |
+|------|--------|----------|
+| TCP（局域网/无 Docker） | `RemoteOcrCaptchaResolver` | `127.0.0.1:21601` |
+| HTTP（容器化/可观测） | `RemoteOcrHttpCaptchaResolver` | `http://127.0.0.1:5000` |
+| 人工（UI 弹窗） | `ManualCaptchaResolver` | - |
+| 已有 ONNX 模型 | `ExprCaptchaResolver` | - |
+
+环境变量：
+
+```bash
+export SHMTU_OCR_HOST=192.168.1.100
+export SHMTU_OCR_PORT=21601
+export SHMTU_OCR_HTTP_URL=http://192.168.1.100:5000
+```
+
+## 平台选择
+
+| 目标 | 入口 | 文档 |
+|------|------|------|
+| Android App | `cas_android_lib` | [Android 集成](/platforms/android) |
+| JVM / 桌面端 | `cas_lib` | [JVM 集成](/platforms/jvm) |
+| 命令行调试 | `cas_cli` | [CLI 工具](/platforms/cli) |
+
+## 下一步
+
+- [整体架构](/guide/architecture)
+- [API 总览](/api/overview)
+- [Android 集成指南](/platforms/android)

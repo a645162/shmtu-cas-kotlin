@@ -1,107 +1,171 @@
 ---
-title: CAS认证流程概览
+title: CAS 认证原理
 ---
 
-# CAS 认证流程概览
+# CAS 认证原理
 
 ## 什么是 CAS
 
 CAS（Central Authentication Service）是上海海事大学使用的统一认证平台，地址为 `https://cas.shmtu.edu.cn/cas/login`。校园内的多个子系统（Epay 一卡通、微信后勤平台等）均通过 CAS 实现单点登录（SSO）。
 
-## 认证流程
-
-整个 CAS 认证流程可以分为以下几个步骤：
+## 总体流程
 
 ```
 1. 访问目标服务 → 302 重定向到 CAS 登录页
 2. 获取登录页面 → 提取 execution 参数
-3. 下载验证码图片 → 发送到 OCR 服务器识别
-4. 提交登录表单 → 302 重定向表示成功
-5. 跟随重定向 → 回到目标服务并获取认证 Cookie
+3. 下载验证码图片 → 解析出算式答案
+4. 提交登录表单 → 302 表示成功
+5. 跟随重定向 → 回到目标服务并获得认证 Cookie（含 TGC）
+6. 后续请求复用 TGC → 直到 TGC 失效
 ```
 
-### 第一步：访问目标服务
+## 第一步：访问目标服务
 
-当未登录用户访问受 CAS 保护的服务时，服务会返回 302 重定向，将用户引导至 CAS 登录页面。例如：
-
-- Epay：`https://ecard.shmtu.edu.cn/epay/consume/query` → 302 → CAS 登录页
-- 后勤平台：`http://hqzx.shmtu.edu.cn/cellphone/getHotWater` → 302 → CAS 登录页
-
-在代码中，我们使用 `OkHttpClient` 并禁用自动重定向，手动跟踪每次 302 响应：
+未登录时，受 CAS 保护的服务会返回 `302`，把浏览器引导到 CAS 登录页。本库用 `OkHttpClient` 关闭自动重定向：
 
 ```kotlin
 val client = OkHttpClient.Builder()
     .followRedirects(false)
     .followSslRedirects(false)
+    .connectTimeout(10, TimeUnit.SECONDS)
+    .readTimeout(30, TimeUnit.SECONDS)
     .build()
 ```
 
-### 第二步：获取 execution 参数
+每次 `302` 都必须由代码自己跟踪，因为 `Set-Cookie` 和 `Location` 都携带着关键认证信息。
 
-CAS 登录页面包含一个隐藏的 `execution` 字段，每次请求的值都不同，用于防止 CSRF 攻击。我们使用 Jsoup 解析 HTML 提取该值：
+## 第二步：execution 提取
 
-```kotlin
-val document: Document = Jsoup.parse(htmlCode)
-val element: Element? = document.selectFirst("input[name=execution]")
-val execution: String = element?.attr("value") ?: ""
-```
-
-### 第三步：下载验证码并识别
-
-CAS 登录需要输入验证码（数学表达式计算），验证码图片从 `https://cas.shmtu.edu.cn/cas/captcha` 获取：
+CAS 登录页含有一个隐藏的 `execution` 字段，每次请求值都不同，用于防止 CSRF 重放：
 
 ```kotlin
-val resultCaptcha = Captcha.getImageDataFromUrlUsingGet(cookie = loginCookie)
-val imageData = resultCaptcha.first       // 图片二进制数据
-val jSessionId = resultCaptcha.second     // 服务器返回的 JSESSIONID
+val (execution, jSessionId) = CasAuth.getExecution(
+    url = "https://cas.shmtu.edu.cn/cas/login?service=...",
+    cookie = ""
+)
 ```
 
-获取到验证码图片后，通过 TCP 协议发送给远程 OCR 服务器识别：
+底层使用 Jsoup：
 
 ```kotlin
-val validateCode = Captcha.ocrByRemoteTcpServer(host, port, imageData)
-val exprResult = Captcha.getExprResultByExprString(validateCode)
+val element = Jsoup.parse(htmlCode).selectFirst("input[name=execution]")
+val execution = element?.attr("value") ?: ""
 ```
 
-### 第四步：提交登录表单
+服务器在返回登录页的同时通过 `Set-Cookie: JSESSIONID=...` 设置会话 ID，必须在后续请求中带上。
 
-使用提取的参数构造 POST 请求提交登录：
+## 第三步：验证码
+
+CAS 登录要求输入数学表达式（如 `3+5=8`）的计算结果。本库把「图片字节 → 答案」抽成 `CaptchaResolver`：
 
 ```kotlin
-val formBody = FormBody.Builder()
-    .add("username", username)
-    .add("password", password)
-    .add("validateCode", exprResult)
-    .add("execution", execution)
-    .add("_eventId", "submit")
-    .add("geolocation", "")
-    .build()
+interface CaptchaResolver {
+    suspend fun resolve(imageData: ByteArray): Result<CaptchaAnswer>
+}
 ```
 
-登录成功的标志是服务器返回 302 状态码，`Location` 头包含回调地址。
+内置四种实现（详见 [CaptchaResolver](/api/captcha-resolver)）：
 
-### 第五步：跟随重定向回到目标服务
+- `ManualCaptchaResolver` — 弹窗让用户输入
+- `RemoteOcrCaptchaResolver` — TCP 远程 OCR
+- `RemoteOcrHttpCaptchaResolver` — HTTP 远程 OCR
+- `ExprCaptchaResolver` — 调用方直接给算式
 
-CAS 认证成功后，需要跟随重定向链回到目标服务。每次重定向都会通过 `Set-Cookie` 头传递认证凭证（如 `JSESSIONID`、`wengine_new_ticket` 等）。
+无论哪种实现，宿主最终都通过 `CaptchaAnswer.intoFinalAnswer()` 得到 `ANSWER` 形态的字符串。
+
+## 第四步：提交登录
 
 ```kotlin
-val resultRedirect = CasAuth.casRedirect(location, cookie)
+val (code, location, setCookie) = CasAuth.casLogin(
+    url = casLoginUrl,
+    username = "学号",
+    password = "密码",
+    validateCode = exprResult,        // 例如 "8"
+    execution = execution,
+    cookie = currentCookie
+)
 ```
 
-## 认证状态
+表单字段：
 
-`CasAuthStatus` 枚举定义了认证可能的结果：
+| 字段 | 值 |
+|------|----|
+| `username` | `username.trim()` |
+| `password` | `password.trim()` |
+| `validateCode` | `validateCode.trim()` |
+| `execution` | `execution.trim()` |
+| `_eventId` | `submit` |
+| `geolocation` | 空串 |
 
-| 状态 | 代码 | 说明 |
-|------|------|------|
-| SUCCESS | 200 | 认证成功 |
-| VALIDATE_CODE_ERROR | -1 | 验证码错误 |
-| PASSWORD_ERROR | -2 | 用户名或密码错误 |
-| FAILURE | 404 | 其他认证失败 |
+返回结果：
+
+| 状态码 | 含义 | 来源 |
+|--------|------|------|
+| `302` | 成功，`location` 为重定向目标 | `Location` 头 |
+| `-1` (`VALIDATE_CODE_ERROR`) | 验证码错误 | `#loginErrorsPanel` 含 `reCAPTCHA` |
+| `-2` (`PASSWORD_ERROR`) | 用户名/密码错误 | `#loginErrorsPanel` 含 `account is not recognized` |
+| 其它 | 其它错误 | 解析错误面板 |
+
+## 第五步：跟随重定向
+
+登录成功后 CAS 会返回 `302 → Location` 链。每一个跳板都可能下发新的 `Set-Cookie`：
+
+```kotlin
+val (code, nextLocation, mergedCookie) = CasAuth.casRedirect(location, cookie)
+```
+
+`mergeCookies` 把当前 cookie 与新 `Set-Cookie` 合并：
+
+```kotlin
+fun mergeCookies(existing: String, setCookieHeaders: List<String>): String
+```
+
+合并后 `TGC`（Ticket Granting Cookie）就持有在宿主手里。
+
+## 第六步：TGC 复用
+
+TGC 失效前，再访问目标服务能直接跳到子系统。`EpayAuth.tryReuseTgc()` 会再次请求 `getExecution`：
+
+- 返回空 execution → TGC 仍有效，CAS 服务器会直接放行
+- 返回非空 execution → TGC 已失效，必须重新走 challenge → login
+
+实际登录流程是三阶段设计（[EpayAuth](/api/epay-auth)）：
+
+```
+probeLogin   → 探测当前会话
+prepareChallenge → 准备 execution + 验证码图片
+submitLogin  → 提交登录（含 TGC 复用 + 自动重试）
+```
+
+## 认证状态枚举
+
+```kotlin
+sealed class SessionProbe {
+    data object AlreadyLoggedIn : SessionProbe()
+    data class NeedLogin(val loginUrl: String) : SessionProbe()
+}
+
+sealed class LoginSubmitResult {
+    data object Success : LoginSubmitResult()
+    data object ValidateCodeError : LoginSubmitResult()
+    data object PasswordError : LoginSubmitResult()
+    data class Failure(val message: String) : LoginSubmitResult()
+}
+```
+
+`CasAuthStatus` 枚举保留了底层数值码：
+
+| 状态 | code |
+|------|------|
+| `SUCCESS` | `200` |
+| `VALIDATE_CODE_ERROR` | `-1` |
+| `PASSWORD_ERROR` | `-2` |
+| `FAILURE` | `404` |
 
 ## 注意事项
 
-- CAS 登录过程中必须正确维护 Cookie，特别是 `JSESSIONID`，它在获取验证码时由服务器设置
-- `execution` 参数每次请求都不同，必须在提交登录表单前重新获取
-- 验证码为数学表达式（如 `3+5=8`），需要计算等号后面的结果
-- OkHttp 客户端必须禁用自动重定向，以便手动处理 302 响应和 Cookie
+- `execution` 每次请求都不一样，提交前必须重新拿
+- `JSESSIONID` 在验证码下载时下发，后续 `casLogin` 必须带上
+- 关闭 OkHttp 的自动重定向，否则会丢失 `Set-Cookie`
+- TGC 跨服务不通用，但 `cas.shmtu.edu.cn` 域内复用
+- `from` 参数在微信后勤平台必须保留原始请求 URL

@@ -1,62 +1,39 @@
 ---
-title: Captcha API 参考
+title: Captcha (底层)
 ---
 
-# Captcha API 参考
+# Captcha (底层)
 
-`Captcha` 提供验证码图片下载、OCR 识别和相关工具方法。位于 `cn.edu.shmtu.cas.captcha` 包。
+`Captcha` 是验证码相关的底层工具类（companion object）。新代码建议优先使用 [`CaptchaResolver`](/api/captcha-resolver) 接口；`Captcha` 主要服务于内部实现与 CLI 调试。
 
-::: info
-`Captcha` 的所有方法均为伴生对象方法，可直接通过类名调用。
-:::
+`cn.edu.shmtu.cas.captcha.Captcha`
 
 ## 配置属性
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| ocrHost | String | `"127.0.0.1"` | OCR 服务器地址 |
-| ocrPort | Int | `21601` | OCR 服务器端口 |
+| `ocrHost` | `String` | `"127.0.0.1"` | TCP OCR 服务器地址 |
+| `ocrPort` | `Int` | `21601` | TCP OCR 服务器端口 |
 
 ## setOcrServer
-
-设置 OCR 服务器地址和端口。
 
 ```kotlin
 fun setOcrServer(host: String, port: Int = 21601)
 ```
 
----
-
 ## getImageDataFromUrlUsingGet
 
-通过 OkHttp GET 请求下载验证码图片（推荐方法）。
-
 ```kotlin
-fun getImageDataFromUrlUsingGet(
-    cookie: String? = null
-): Pair<ByteArray?, String>?
+fun getImageDataFromUrlUsingGet(cookie: String? = null): Pair<ByteArray?, String>?
 ```
 
-### 参数
+通过 OkHttp 下载验证码图片。
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| cookie | String? | `null` | 请求携带的 Cookie |
+返回 `Pair(imageBytes, mergedCookie)`，失败时返回 `null`。
 
-### 返回值
-
-`Pair<ByteArray?, String>?` - 成功时返回图片数据和 Cookie，失败返回 `null`。
-
-| 位置 | 说明 |
-|------|------|
-| first | 验证码图片二进制数据 |
-| second | 服务器通过 `Set-Cookie` 返回的 JSESSIONID |
-
----
+请求地址：`https://cas.shmtu.edu.cn/cas/captcha`
 
 ## getImageDataFromUrl
-
-通过 URL 直接下载验证码图片。
 
 ```kotlin
 fun getImageDataFromUrl(
@@ -64,152 +41,73 @@ fun getImageDataFromUrl(
 ): ByteArray
 ```
 
-### 参数
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| imageUrl | String | CAS 验证码 URL | 验证码图片地址 |
-
-### 返回值
-
-`ByteArray` - 验证码图片二进制数据。
-
----
+直接通过 `java.net.URL` 下载图片，不携带 Cookie（一般不用）。
 
 ## ocrByRemoteTcpServer
 
-通过 TCP 协议发送验证码图片到 OCR 服务器识别。
-
 ```kotlin
 fun ocrByRemoteTcpServer(
-    host: String,
-    port: Int,
-    imageData: ByteArray
+    host: String, port: Int, imageData: ByteArray
 ): String
 ```
 
-### 参数
+通过 TCP 把图片发给 OCR 服务，读取算式字符串。
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| host | String | OCR 服务器地址 |
-| port | Int | OCR 服务器端口 |
-| imageData | ByteArray | 验证码图片二进制数据 |
+协议：
 
-### 返回值
-
-`String` - OCR 识别结果（数学表达式，如 `"3+5=8"`）。连接失败时抛出 `ConnectException`。
-
-### 通信协议
-
-1. 建立 TCP 连接
-2. 发送图片二进制数据
+1. 连 `host:port`
+2. 发送图片字节
 3. 发送 `<END>` 标记
-4. 接收识别结果字符串
+4. 读回响应
 
----
+连接失败抛 `ConnectException`。
 
 ## ocrByRemoteTcpServerAutoRetry
 
-带自动重试的 OCR 识别。
-
 ```kotlin
 fun ocrByRemoteTcpServerAutoRetry(
-    host: String,
-    port: Int,
+    host: String, port: Int,
     imageData: ByteArray,
     retryTimes: Int = 3
 ): String
 ```
 
-### 参数
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| host | String | - | OCR 服务器地址 |
-| port | Int | - | OCR 服务器端口 |
-| imageData | ByteArray | - | 验证码图片二进制数据 |
-| retryTimes | Int | `3` | 最大重试次数 |
-
-### 返回值
-
-`String` - OCR 识别结果。所有重试均失败时返回空字符串。
-
----
+自动重试版本。所有重试均失败返回 `""`。
 
 ## getExprResultByExprString
-
-从数学表达式中提取计算结果。
 
 ```kotlin
 fun getExprResultByExprString(expr: String): String
 ```
 
-### 示例
+从算式中提取 `=` 右侧。无 `=` 返回空串。
 
 ```kotlin
-Captcha.getExprResultByExprString("3+5=8")  // 返回 "8"
-Captcha.getExprResultByExprString("9-2=7")  // 返回 "7"
+assert(Captcha.getExprResultByExprString("3+5=8") == "8")
+assert(Captcha.getExprResultByExprString("42") == "")
 ```
-
----
 
 ## 工具方法
 
-### saveImageToFile
-
-将验证码图片保存到文件。
-
-```kotlin
-fun saveImageToFile(imageData: ByteArray, directoryPath: String = ".")
-```
-
-文件名格式：`captcha_YYYYMMDDHHmmss.png`
-
-### readImageFromFile
-
-从文件读取图片数据。
-
-```kotlin
-fun readImageFromFile(fileName: String): ByteArray
-```
-
-### validateIPAddress
-
-验证 IP 地址格式。
-
-```kotlin
-fun validateIPAddress(ip: String): Boolean
-```
-
-### validatePort
-
-验证端口号。
-
-```kotlin
-fun validatePort(port: Int): Boolean   // 0-65535
-fun validatePort(port: String): Boolean
-```
-
----
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `saveImageToFile` | `(ByteArray, dir: String = ".")` | 保存到 `captcha_YYYYMMDDHHmmss.png` |
+| `readImageFromFile` | `(String) -> ByteArray` | 读本地图片 |
+| `validateIPAddress` | `(String) -> Boolean` | IP 格式校验 |
+| `validatePort` | `(Int / String) -> Boolean` | 端口 0-65535 |
 
 ## 测试方法
 
-### testLocalTcpServerOcr
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `testLocalTcpServerOcr` | `(ip, port) -> Unit` | 单次下载+识别，打印耗时 |
+| `testLocalTcpServerOcrMultiThread` | `(times: Int = 10) -> Unit` | 多线程并发测试 |
 
-单次验证码识别测试。
+## 旧 API 弃用说明
 
-```kotlin
-fun testLocalTcpServerOcr(
-    ip: String = ocrHost,
-    port: Int = ocrPort
-)
-```
-
-### testLocalTcpServerOcrMultiThread
-
-多线程并发验证码识别测试。
-
-```kotlin
-fun testLocalTcpServerOcrMultiThread(times: Int = 10)
-```
+> 旧版 `Main.kt` 直接使用 `getImageDataFromUrlUsingGet()` + `getExprResultByExprString()` 的同步模式，与新版三阶段登录（`CaptchaResolver`）相比灵活性差。新代码请改用：
+>
+> ```kotlin
+> val resolver = RemoteOcrCaptchaResolver(host, port)
+> val answer = resolver.resolve(imageData).getOrThrow()
+> ```

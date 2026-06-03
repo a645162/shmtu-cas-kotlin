@@ -4,54 +4,50 @@ title: CasAuth API 参考
 
 # CasAuth API 参考
 
-`CasAuth` 是 CAS 认证的核心工具类，提供登录页面解析、表单提交和重定向跟踪功能。位于 `cn.edu.shmtu.cas.auth.common` 包。
+`CasAuth` 是 CAS 认证的底层工具类，提供客户端创建、execution 提取、登录表单提交、重定向跟踪等协议细节。所有方法都是 `companion object` 方法，无需实例化。
 
-::: info
-`CasAuth` 的所有方法均为伴生对象（companion object）方法，可以直接通过类名调用，无需实例化。
-:::
+`cn.edu.shmtu.cas.auth.common.CasAuth` — 对应包路径。
+
+## createClient
+
+```kotlin
+fun createClient(): OkHttpClient
+```
+
+创建一个**不自动重定向**的 OkHttpClient。
+
+| 配置 | 值 |
+|------|----|
+| `followRedirects` | `false` |
+| `followSslRedirects` | `false` |
+| `connectTimeout` | 10s |
+| `readTimeout` | 30s |
+| `writeTimeout` | 30s |
+
+> ⚠️ 必须禁用自动重定向！CAS 流程的 `Set-Cookie` 与 `Location` 必须由代码自己接管。
 
 ## getExecution
-
-获取 CAS 登录页面的 `execution` 隐藏字段值。
 
 ```kotlin
 fun getExecution(
     url: String = "https://cas.shmtu.edu.cn/cas/login",
     cookie: String = ""
-): String
+): Pair<String, String>
 ```
 
-### 参数
+获取 CAS 登录页 `execution` 隐藏字段值，并返回服务器下发的 `JSESSIONID`。
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| url | String | `https://cas.shmtu.edu.cn/cas/login` | CAS 登录页面 URL |
-| cookie | String | `""` | 请求携带的 Cookie |
+返回 `Pair(execution, jSessionId)`。
 
-### 返回值
+| 出错情况 | 返回 |
+|----------|------|
+| HTTP 非 200 | `Pair("", "")` |
+| HTML 无 `input[name=execution]` | `Pair("", "")` |
+| `Set-Cookie` 无 `JSESSIONID` | `Pair(value, cookie)` |
 
-`String` - `execution` 字段的值。获取失败时返回空字符串。
-
-### 说明
-
-- 使用 Jsoup 解析 HTML，查找 `input[name=execution]` 元素
-- `execution` 值每次请求都不同，用于防止 CSRF 攻击
-- 必须在提交登录表单前获取最新的 `execution` 值
-
-### 示例
-
-```kotlin
-val execution = CasAuth.getExecution(
-    url = "https://cas.shmtu.edu.cn/cas/login?service=...",
-    cookie = jSessionId
-)
-```
-
----
+底层使用 Jsoup 解析。
 
 ## casLogin
-
-提交 CAS 登录表单。
 
 ```kotlin
 fun casLogin(
@@ -64,77 +60,79 @@ fun casLogin(
 ): Triple<Int, String, String>
 ```
 
-### 参数
+提交 CAS 登录表单。返回 `Triple(code, locationOrHtml, setCookieOrError)`。
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| url | String | CAS 登录提交地址 |
-| username | String | 学号/用户名 |
-| password | String | 密码 |
-| validateCode | String | 验证码计算结果 |
-| execution | String | 从登录页面提取的 execution 值 |
-| cookie | String | JSESSIONID Cookie |
+### 表单字段
 
-### 返回值
+| 字段 | 值 |
+|------|----|
+| `username` | `username.trim()` |
+| `password` | `password.trim()` |
+| `validateCode` | `validateCode.trim()` |
+| `execution` | `execution.trim()` |
+| `_eventId` | `submit` |
+| `geolocation` | 空串 |
 
-`Triple<Int, String, String>`
+### 自定义请求头
 
-| 位置 | 说明 |
-|------|------|
-| first | 状态码。302 表示登录成功，其他表示失败 |
-| second | 302 时为重定向地址；其他情况为响应 HTML |
-| third | 302 时为 `Set-Cookie` 值；其他情况为错误信息 |
+| 头 | 值 |
+|----|----|
+| `Host` | `cas.shmtu.edu.cn` |
+| `Content-Type` | `application/x-www-form-urlencoded` |
+| `Connection` | `keep-alive` |
+| `Accept-Encoding` | `gzip, deflate, br` |
+| `Accept` | `*/*` |
+| `Cookie` | `cookie.trim()` |
 
-### 错误处理
+### 返回值含义
 
-当登录失败时，方法会解析 HTML 中的 `#loginErrorsPanel` 元素获取错误信息：
-
-- 包含 `account is not recognized` → 返回 `CasAuthStatus.PASSWORD_ERROR.code`（-2）
-- 包含 `reCAPTCHA` → 返回 `CasAuthStatus.VALIDATE_CODE_ERROR.code`（-1）
-- 其他错误 → 返回原始 HTTP 状态码
-
----
+| 状态码 | 含义 | 来源 |
+|--------|------|------|
+| `302` | 登录成功，`second` 为重定向 URL | `Location` 头 |
+| `CasAuthStatus.VALIDATE_CODE_ERROR.code` (`-1`) | 验证码错误 | `#loginErrorsPanel` 含 `reCAPTCHA` |
+| `CasAuthStatus.PASSWORD_ERROR.code` (`-2`) | 用户名/密码错误 | `#loginErrorsPanel` 含 `account is not recognized` |
+| 其它 | 其它错误 | 原始状态码 + 错误文本 |
 
 ## casRedirect
 
-CAS 认证成功后跟踪重定向。
-
 ```kotlin
-fun casRedirect(
-    url: String,
-    cookie: String
-): Triple<Int, String, String>
+fun casRedirect(url: String, cookie: String): Triple<Int, String, String>
 ```
 
-### 参数
+跟踪一次重定向，返回 `Triple(code, nextLocation, mergedCookie)`。
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| url | String | 重定向目标地址 |
-| cookie | String | 当前 Cookie |
+- `code == 302` → 继续跟踪
+- `code == 200` → 视为已落到目标服务
 
-### 返回值
-
-`Triple<Int, String, String>`
-
-| 位置 | 说明 |
-|------|------|
-| first | 状态码。302 表示需要继续重定向 |
-| second | 重定向地址 |
-| third | 新的 Cookie（来自 `Set-Cookie` 头） |
-
-### 说明
-
-- CAS 认证成功后可能需要多次重定向才能到达目标服务
-- 每次重定向都可能更新 Cookie
-- 调用方需要根据返回的状态码决定是否继续跟踪重定向
-
-### 示例
+## mergeCookies
 
 ```kotlin
-val result = CasAuth.casRedirect(location, cookie)
-if (result.first == 302) {
-    // 继续跟踪重定向
-    val nextResult = CasAuth.casRedirect(result.second, result.third)
+fun mergeCookies(existingCookie: String, setCookieHeaders: List<String>): String
+```
+
+把 `Set-Cookie` 头列表合并进已有 cookie 字符串。返回 `"name=value; name=value"` 格式。
+
+## 使用示例
+
+```kotlin
+val (execution, jsession) = CasAuth.getExecution(
+    url = "https://cas.shmtu.edu.cn/cas/login?service=...",
+    cookie = ""
+)
+
+val challenge = epay.prepareChallenge().getOrThrow()
+// challenge.execution, challenge.captchaImage
+
+val (code, location, cookie) = CasAuth.casLogin(
+    url = loginUrl,
+    username = "学号",
+    password = "密码",
+    validateCode = "8",
+    execution = challenge.execution,
+    cookie = jsession
+)
+if (code == 302) {
+    val (c2, next, cookie2) = CasAuth.casRedirect(location, cookie)
+    // 继续 follow 302 链直到 200
 }
 ```

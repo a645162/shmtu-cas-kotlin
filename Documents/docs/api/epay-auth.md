@@ -1,132 +1,165 @@
 ---
-title: EpayAuth API 参考
+title: EpayAuth
 ---
 
-# EpayAuth API 参考
+# EpayAuth
 
-`EpayAuth` 提供 Epay 一卡通平台的认证和账单查询功能。位于 `cn.edu.shmtu.cas.auth` 包。
+`EpayAuth` 封装了一卡通（Epay）侧的 CAS 登录 + 账单抓取。
 
-::: info
-`EpayAuth` 需要实例化使用，内部自动管理 Cookie 和登录状态。
-:::
+`cn.edu.shmtu.cas.auth.EpayAuth`
 
 ## 构造函数
 
 ```kotlin
-class EpayAuth()
+class EpayAuth(
+    private val captchaResolver: CaptchaResolver? = null
+)
 ```
 
-无参数构造。实例化后内部状态为空，需要调用 `login` 方法完成认证。
-
----
-
-## login
-
-执行 Epay 平台登录（基于 CAS 认证）。
-
-```kotlin
-fun login(
-    username: String,
-    password: String
-): Boolean
-```
-
-### 参数
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| username | String | 学号 |
-| password | String | 密码 |
-
-### 返回值
-
-`Boolean` - 登录是否成功。
-
-### 内部流程
-
-1. 检查登录状态（如已登录则直接返回 `true`）
-2. 获取 302 重定向地址，提取 CAS 登录 URL
-3. 调用 `CasAuth.getExecution()` 获取 execution 参数
-4. 调用 `Captcha.getImageDataFromUrlUsingGet()` 下载验证码
-5. 调用 `Captcha.ocrByRemoteTcpServer()` 识别验证码
-6. 调用 `CasAuth.casLogin()` 提交登录
-7. 调用 `CasAuth.casRedirect()` 跟随重定向回 Epay
-8. 验证是否成功访问账单页面
-
----
-
-## getBill
-
-查询一卡通消费账单。
-
-```kotlin
-fun getBill(
-    pageNo: String = "1",
-    tabNo: String = "1",
-    cookie: String = ""
-): Triple<Int, String, String>
-```
-
-### 参数
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| pageNo | String | `"1"` | 页码 |
-| tabNo | String | `"1"` | 标签页编号 |
-| cookie | String | `""` | 自定义 Cookie，为空使用内部 Cookie |
-
-### 返回值
-
-`Triple<Int, String, String>`
-
-| 位置 | 说明 |
+| 参数 | 说明 |
 |------|------|
-| first | HTTP 状态码。200 表示成功，302 表示需要重新认证 |
-| second | 200 时为账单 HTML；302 时为重定向地址 |
-| third | Cookie 信息 |
+| `captchaResolver` | 可选；提供后 `submitLogin(user, pass, maxRetries)` 走一键登录 |
 
----
+## 三阶段方法
 
-## testLoginStatus
-
-检查当前登录状态。
+### probeLogin
 
 ```kotlin
-fun testLoginStatus(): Boolean
+suspend fun probeLogin(): Result<SessionProbe>
 ```
 
-### 返回值
+探测当前会话。
 
-`Boolean` - 是否已登录。通过尝试访问账单页面判断：
+- `200` → `SessionProbe.AlreadyLoggedIn`
+- `302` → `SessionProbe.NeedLogin(loginUrl)`，内部保存 loginUrl
+- 其它 → `Result.failure`
 
-- 返回 200 → 已登录
-- 返回 302 → 未登录，同时更新内部登录 URL 和 Cookie
-
----
-
-## 内部状态
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| _epayCookie | String | Epay 平台认证 Cookie |
-| _htmlCode | String | 最近一次响应的 HTML |
-| _loginUrl | String | CAS 登录 URL |
-| _loginCookie | String | 登录过程使用的 Cookie |
-
----
-
-## 使用示例
+### prepareChallenge
 
 ```kotlin
-val epayAuth = EpayAuth()
+suspend fun prepareChallenge(): Result<LoginChallenge>
+```
 
-// 登录
-if (epayAuth.login("学号", "密码")) {
-    // 查询账单
-    val result = epayAuth.getBill(pageNo = "1")
-    if (result.first == 200) {
-        println("账单数据获取成功")
-        // 使用 BillParser 解析 HTML
-    }
+准备 `execution` + 验证码图片。
+
+```kotlin
+data class LoginChallenge(
+    val execution: String,
+    val captchaImage: ByteArray
+)
+```
+
+必须先 `probeLogin` 拿到 loginUrl。
+
+### submitLogin（手动）
+
+```kotlin
+suspend fun submitLogin(
+    username: String, password: String,
+    validateCode: String, execution: String
+): Result<LoginSubmitResult>
+```
+
+手动提交登录。返回 `LoginSubmitResult`：
+
+| 变体 | 含义 |
+|------|------|
+| `Success` | 已登录 |
+| `ValidateCodeError` | 验证码错误 |
+| `PasswordError` | 用户名/密码错误 |
+| `Failure(msg)` | 其它错误 |
+
+### submitLogin（一键）
+
+```kotlin
+suspend fun submitLogin(
+    username: String, password: String,
+    maxRetries: Int = 5
+): Result<LoginSubmitResult>
+```
+
+需要 `captchaResolver != null`。内部：
+
+1. `tryReuseTgc()` 试探 TGC
+2. 循环 `prepareChallenge` → `resolver.resolve` → 底层 `casLogin`
+3. `ValidateCodeError` 自动重试，`PasswordError` 立即返回
+
+### tryReuseTgc
+
+```kotlin
+suspend fun tryReuseTgc(): Result<Boolean>
+```
+
+试探 TGC 是否仍有效。
+
+### testLoginStatus
+
+```kotlin
+suspend fun testLoginStatus(): Result<Boolean>
+```
+
+通过访问账单接口判断当前是否已登录。
+
+## 业务方法
+
+### getBill (BillType)
+
+```kotlin
+suspend fun getBill(
+    pageNo: Int = 1,
+    billType: BillType = BillType.ALL
+): Result<String>
+```
+
+### getBill (raw tabNo)
+
+```kotlin
+suspend fun getBill(
+    pageNo: Int = 1,
+    tabNo: String = "1"
+): Result<String>
+```
+
+请求地址：`https://ecard.shmtu.edu.cn/epay/consume/query?pageNo={pageNo}&tabNo={tabNo}`
+
+### getAllBills
+
+```kotlin
+suspend fun getAllBills(
+    billType: BillType = BillType.ALL,
+    startPage: Int = 1,
+    maxPages: Int = 50
+): Result<List<String>>
+```
+
+翻页抓全部，遇到 `aazone` 标记缺失或空页即停。
+
+## 会话管理
+
+```kotlin
+fun restoreSession(json: String): Result<Unit>    // 恢复 Cookie
+fun extractSession(): String                      // 导出 JSON
+fun getCookieString(): String                     // 导出字符串
+```
+
+## 内部常量
+
+```kotlin
+const val EPAY_BILL_URL = "https://ecard.shmtu.edu.cn/epay/consume/query"
+const val VALIDATE_CODE_ERROR = 401
+const val PASSWORD_ERROR = 402
+```
+
+## 完整示例
+
+```kotlin
+val epay = EpayAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000"))
+
+// 一键登录
+val result = epay.submitLogin("学号", "密码").getOrThrow()
+if (result is LoginSubmitResult.Success) {
+    val html = epay.getBill(pageNo = 1, billType = BillType.ALL).getOrThrow()
+    val items = BillParser().parseBillItems(html)
+    println("共 ${items.size} 条")
 }
 ```
