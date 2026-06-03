@@ -113,8 +113,12 @@ class Captcha {
                     return null
                 }
 
-                val returnCookie =
-                    response.headers["Set-Cookie"] ?: (cookie ?: "")
+                val setCookieHeaders = response.headers("Set-Cookie")
+                val returnCookie = if (setCookieHeaders.isNotEmpty()) {
+                    setCookieHeaders.joinToString("; ") { it.substringBefore(";") }
+                } else {
+                    cookie ?: ""
+                }
 
                 return Pair(response.body?.bytes(), returnCookie)
             } catch (e: IOException) {

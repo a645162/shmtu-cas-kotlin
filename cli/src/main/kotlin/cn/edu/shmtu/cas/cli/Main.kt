@@ -135,7 +135,7 @@ private fun cmdBill(args: List<String>) {
         }
 
         println("正在获取账单...")
-        val billResult = auth.getBill()
+        val billResult = auth.getBill(pageNo = 1, billType = cn.edu.shmtu.cas.datatype.BillType.ALL)
         if (billResult.isFailure) {
             println("获取账单失败: ${billResult.exceptionOrNull()?.message}")
             return@runBlocking
