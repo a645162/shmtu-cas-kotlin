@@ -24,12 +24,6 @@ android {
             withSourcesJar()
         }
     }
-
-    sourceSets {
-        main {
-            java.srcDirs += ['../cas_lib/src/main/kotlin']
-        }
-    }
 }
 
 kotlin {
@@ -37,6 +31,10 @@ kotlin {
 }
 
 dependencies {
+    // api: 让 cas_lib 的所有公开 API 传递给 cas_android_lib 的消费者(app / ocr_app_demo)
+    // 这样 app 只需 implementation("cn.edu.shmtu.cas:shmtu-cas-android:...") 即可同时获得 cas_lib 的类
+    api project(':cas_lib')
+
     implementation 'org.jsoup:jsoup:1.22.2'
     implementation 'com.squareup.okhttp3:okhttp:5.3.2'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0'
