@@ -27,6 +27,15 @@ class RemoteOcrHttpCaptchaResolver(
 
     companion object {
         const val DEFAULT_BASE_URL = "http://127.0.0.1:21600"
+
+        fun isValidBaseUrl(baseUrl: String): Boolean {
+            return try {
+                val uri = URI(baseUrl)
+                (uri.scheme == "http" || uri.scheme == "https") && !uri.host.isNullOrBlank()
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 
     private val json = Json { ignoreUnknownKeys = true }

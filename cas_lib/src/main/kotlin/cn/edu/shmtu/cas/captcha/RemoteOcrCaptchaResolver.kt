@@ -1,5 +1,10 @@
 package cn.edu.shmtu.cas.captcha
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.InetSocketAddress
+import java.net.Socket
+
 /**
  * 远程 TCP OCR 验证码解析器
  *
@@ -11,6 +16,17 @@ class RemoteOcrCaptchaResolver(
     private val port: Int,
     private val retryTimes: Int = 3
 ) : CaptchaResolver {
+    suspend fun healthCheck(timeoutMs: Int = 3000): Boolean = withContext(Dispatchers.IO) {
+        try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, port), timeoutMs)
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     override suspend fun resolve(imageData: ByteArray): Result<CaptchaAnswer> {
         return try {
             val result = Captcha.ocrByRemoteTcpServerAutoRetry(host, port, imageData, retryTimes)
