@@ -6,16 +6,14 @@ import java.io.DataOutputStream
 import java.io.File
 import java.net.Socket
 import java.net.URI
-import java.nio.file.Paths
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import javax.imageio.ImageIO
-
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class Captcha {
 
@@ -30,23 +28,14 @@ class Captcha {
         }
 
         fun readImageFromFile(fileName: String): ByteArray {
-            // Read image from file
-            val imageFile = File(fileName)
-            val image = ImageIO.read(imageFile)
-
-            // Convert image to byte array
-            val baos = ByteArrayOutputStream()
-            ImageIO.write(image, "png", baos)
-            val imageBytes = baos.toByteArray()
-            return imageBytes
+            return File(fileName).readBytes()
         }
 
         fun saveImageToFile(imageData: ByteArray, directoryPath: String = ".") {
-            val currentDateTime = LocalDateTime.now()
-            val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-            val fileName = "captcha_${currentDateTime.format(formatter)}.png"
-            val filePath = Paths.get(directoryPath, fileName).toString()
-            java.io.FileOutputStream(filePath).use { fos ->
+            val formatter = SimpleDateFormat("yyyyMMddHHmmss", Locale.ROOT)
+            val fileName = "captcha_${formatter.format(Date())}.png"
+            val file = File(directoryPath, fileName)
+            file.outputStream().use { fos ->
                 fos.write(imageData)
             }
             println("Image saved to file: $fileName")

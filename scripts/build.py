@@ -6,6 +6,7 @@
   python scripts/build.py          # 构建全部
   python scripts/build.py cas_lib  # 仅构建 cas_lib
   python scripts/build.py cas_cli  # 仅构建 cas_cli
+  python scripts/build.py cas_android_lib  # 仅构建 cas_android_lib
   python scripts/build.py clean    # 清理构建产物
 """
 
@@ -29,6 +30,8 @@ def main():
         run("./gradlew :cas_lib:build")
     elif target == "cas_cli":
         run("./gradlew :cas_cli:build")
+    elif target == "cas_android_lib":
+        run("./gradlew :cas_android_lib:build")
     else:
         run("./gradlew build")
 

@@ -1,5 +1,7 @@
 package cn.edu.shmtu.cas.datatype
 
+import java.util.Locale
+
 /**
  * 强类型账单条目
  *
@@ -48,7 +50,7 @@ data class BillItem(
         "number" -> transactionNo
         "target_user" -> targetUser
         "money_str" -> amount
-        "money" -> String.format("%.2f", money)
+        "money" -> String.format(Locale.ROOT, "%.2f", money)
         "method" -> paymentMethod
         "status", "status_str" -> status.name
         else -> ""
