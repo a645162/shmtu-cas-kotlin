@@ -52,3 +52,6 @@ local.properties
 node_modules/
 Documents/docs/.vitepress/dist/
 Documents/docs/.vitepress/cache/
+
+*.salive
+*.log
