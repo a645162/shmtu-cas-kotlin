@@ -194,7 +194,7 @@ Android AAR:
 import cn.edu.shmtu.cas.auth.EpayAuth
 import cn.edu.shmtu.cas.captcha.RemoteOcrHttpCaptchaResolver
 
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600")
 val auth = EpayAuth(resolver)
 ```
 

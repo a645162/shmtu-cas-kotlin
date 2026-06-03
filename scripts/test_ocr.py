@@ -5,7 +5,7 @@
 用法:
   python scripts/test_ocr.py                          # 默认 127.0.0.1:21601
   python scripts/test_ocr.py 192.168.1.100 21601      # 自定义地址
-  python scripts/test_ocr.py --http http://192.168.1.100:5000
+  python scripts/test_ocr.py --http http://192.168.1.100:21600
 """
 
 import base64
@@ -93,7 +93,7 @@ def main():
     args = sys.argv[1:]
 
     if args and args[0] == "--http":
-        base_url = args[1] if len(args) > 1 else "http://127.0.0.1:5000"
+        base_url = args[1] if len(args) > 1 else "http://127.0.0.1:21600"
         test_http(base_url)
     else:
         host = args[0] if len(args) > 0 else os.environ.get("SHMTU_OCR_HOST", "127.0.0.1")

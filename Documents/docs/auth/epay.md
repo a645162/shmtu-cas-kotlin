@@ -38,7 +38,7 @@ val html: String = epay.getBill(pageNo = 1, billType = BillType.ALL).getOrThrow(
 如果 `EpayAuth` 构造时注入了 `CaptchaResolver`，可走 `submitLogin(user, pass, maxRetries = 5)` 一步到位：
 
 ```kotlin
-val epay = EpayAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000"))
+val epay = EpayAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600"))
 val r = epay.submitLogin("学号", "密码")
 ```
 
@@ -120,7 +120,7 @@ val result: SyncResult = incrementalSync(
 ## 完整示例
 
 ```kotlin
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600")
 val epay = EpayAuth(resolver)
 
 if (epay.submitLogin("学号", "密码").getOrThrow() is LoginSubmitResult.Success) {

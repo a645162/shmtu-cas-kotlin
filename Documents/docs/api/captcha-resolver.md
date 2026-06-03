@@ -82,15 +82,17 @@ val answer = resolver.resolve(imageData).getOrThrow()
 
 ```kotlin
 class RemoteOcrHttpCaptchaResolver(
-    private val baseUrl: String,
+    private val baseUrl: String = DEFAULT_BASE_URL,
     private val retryTimes: Int = 3
 ) : CaptchaResolver
 ```
 
 RESTful HTTP OCR。请求 `POST {baseUrl}/api/ocr`，body `{"imageBase64": "..."}`。
 
+默认 `baseUrl` 为 `http://127.0.0.1:21600`。
+
 ```kotlin
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000", retryTimes = 3)
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600", retryTimes = 3)
 val ok = resolver.healthCheck()   // 可选
 val answer = resolver.resolve(imageData).getOrThrow()
 ```

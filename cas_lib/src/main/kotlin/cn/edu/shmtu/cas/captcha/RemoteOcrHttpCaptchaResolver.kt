@@ -21,9 +21,13 @@ import java.util.Base64
  * - Response: {"success": bool, "expression": "12+34=", "result": 46, "error": "..."}
  */
 class RemoteOcrHttpCaptchaResolver(
-    private val baseUrl: String,
+    private val baseUrl: String = DEFAULT_BASE_URL,
     private val retryTimes: Int = 3
 ) : CaptchaResolver {
+
+    companion object {
+        const val DEFAULT_BASE_URL = "http://127.0.0.1:21600"
+    }
 
     private val json = Json { ignoreUnknownKeys = true }
 

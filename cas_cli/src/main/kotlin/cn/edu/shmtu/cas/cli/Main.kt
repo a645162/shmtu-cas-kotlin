@@ -66,7 +66,7 @@ private fun parseCommonOpts(args: List<String>): CommonOpts {
     var ocrHost = System.getenv("SHMTU_OCR_HOST") ?: "127.0.0.1"
     var ocrPort = System.getenv("SHMTU_OCR_PORT")?.toIntOrNull() ?: 21601
     var ocrServerType = "tcp"
-    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: "http://127.0.0.1:5000"
+    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: RemoteOcrHttpCaptchaResolver.DEFAULT_BASE_URL
 
     var i = 0
     while (i < args.size) {
@@ -197,7 +197,7 @@ private fun cmdCaptchaTest(args: List<String>) {
     var ocrHost = System.getenv("SHMTU_OCR_HOST") ?: "127.0.0.1"
     var ocrPort = System.getenv("SHMTU_OCR_PORT")?.toIntOrNull() ?: 21601
     var ocrServerType = "tcp"
-    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: "http://127.0.0.1:5000"
+    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: RemoteOcrHttpCaptchaResolver.DEFAULT_BASE_URL
 
     var i = 0
     while (i < args.size) {
@@ -210,9 +210,47 @@ private fun cmdCaptchaTest(args: List<String>) {
         i++
     }
 
-    Captcha.ocrHost = ocrHost
-    Captcha.ocrPort = ocrPort
-    Captcha.testLocalTcpServerOcr(ocrHost, ocrPort)
+    when (ocrServerType) {
+        "http" -> runBlocking {
+            val resultCaptcha = Captcha.getImageDataFromUrlUsingGet()
+            if (resultCaptcha == null) {
+                println("获取验证码失败")
+                return@runBlocking
+            }
+
+            val imageData = resultCaptcha.first
+            if (imageData == null) {
+                println("获取验证码失败")
+                return@runBlocking
+            }
+
+            val resolver = RemoteOcrHttpCaptchaResolver(ocrHttpUrl)
+            val ok = resolver.healthCheck()
+            if (!ok) {
+                println("HTTP OCR 服务不可达: $ocrHttpUrl")
+                return@runBlocking
+            }
+
+            val startTime = System.currentTimeMillis()
+            val result = resolver.resolve(imageData)
+            val executionTime = System.currentTimeMillis() - startTime
+            if (result.isFailure) {
+                println("HTTP OCR 识别失败: ${result.exceptionOrNull()?.message}")
+                return@runBlocking
+            }
+
+            val answer = result.getOrThrow()
+            println("OCR执行时间: $executionTime 毫秒")
+            println(answer.value)
+            println(answer.intoFinalAnswer().value)
+            Captcha.saveImageToFile(imageData)
+        }
+        else -> {
+            Captcha.ocrHost = ocrHost
+            Captcha.ocrPort = ocrPort
+            Captcha.testLocalTcpServerOcr(ocrHost, ocrPort)
+        }
+    }
 }
 
 private fun cmdParse(args: List<String>) {
@@ -266,7 +304,7 @@ private fun printUsage() {
         |  --ocr-host <host>            OCR服务器地址 (默认: 127.0.0.1, env: SHMTU_OCR_HOST)
         |  --ocr-port <port>            OCR服务器端口 (默认: 21601, env: SHMTU_OCR_PORT)
         |  --ocr-server-type <tcp|http> OCR服务器协议 (默认: tcp)
-        |  --ocr-http-url <url>         HTTP OCR服务器地址 (默认: http://127.0.0.1:5000)
+        |  --ocr-http-url <url>         HTTP OCR服务器地址 (默认: ${RemoteOcrHttpCaptchaResolver.DEFAULT_BASE_URL})
         |
         |hot-water 选项:
         |  同 bill

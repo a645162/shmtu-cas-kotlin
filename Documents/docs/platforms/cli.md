@@ -49,7 +49,7 @@ shmtu-cas <command> [options]
 | `--ocr-host` | `SHMTU_OCR_HOST` | `127.0.0.1` | TCP OCR 地址 |
 | `--ocr-port` | `SHMTU_OCR_PORT` | `21601` | TCP OCR 端口 |
 | `--ocr-server-type` | - | `tcp` | `tcp` 或 `http` |
-| `--ocr-http-url` | `SHMTU_OCR_HTTP_URL` | `http://127.0.0.1:5000` | HTTP OCR 基址 |
+| `--ocr-http-url` | `SHMTU_OCR_HTTP_URL` | `http://127.0.0.1:21600` | HTTP OCR 基址 |
 
 ### `hot-water`
 
@@ -60,7 +60,7 @@ shmtu-cas <command> [options]
 仅测试 OCR：
 
 ```bash
-./shmtu-cas captcha-test --ocr-server-type http --ocr-http-url http://127.0.0.1:5000
+./shmtu-cas captcha-test --ocr-server-type http --ocr-http-url http://127.0.0.1:21600
 ```
 
 ### `parse`
@@ -83,7 +83,7 @@ shmtu-cas <command> [options]
 
 ```bash
 # 终端 1：启动 OCR 服务器
-docker run -p 5000:5000 shmtu-ocr-server:cpu
+docker run -p 21600:21600 shmtu-ocr-server:cpu
 
 # 终端 2：跑 CLI
 export SHMTU_USER_ID=2024001

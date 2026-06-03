@@ -97,7 +97,7 @@ const val PASSWORD_ERROR = 402
 ## 完整示例
 
 ```kotlin
-val wechat = WechatAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000"))
+val wechat = WechatAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600"))
 val r = wechat.submitLogin("学号", "密码").getOrThrow()
 if (r is LoginSubmitResult.Success) {
     val html = wechat.getHotWater().getOrThrow()

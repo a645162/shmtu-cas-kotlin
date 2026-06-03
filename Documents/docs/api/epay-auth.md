@@ -153,7 +153,7 @@ const val PASSWORD_ERROR = 402
 ## 完整示例
 
 ```kotlin
-val epay = EpayAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000"))
+val epay = EpayAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600"))
 
 // 一键登录
 val result = epay.submitLogin("学号", "密码").getOrThrow()

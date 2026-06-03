@@ -102,7 +102,7 @@ if (saved != null) {
 ## 完整示例
 
 ```kotlin
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600")
 val wechat = WechatAuth(resolver)
 
 when (val r = wechat.submitLogin("学号", "密码").getOrThrow()) {

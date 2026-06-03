@@ -41,7 +41,7 @@ features:
 
 ```kotlin
 // 1. 选一个验证码解析器
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600")
 
 // 2. 创建 EpayAuth 并登录
 val epay = EpayAuth(resolver)

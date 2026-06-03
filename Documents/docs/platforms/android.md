@@ -171,7 +171,7 @@ val resolver = ManualCaptchaResolver { imageData ->
 
 ```kotlin
 val resolver = RemoteOcrHttpCaptchaResolver(
-    baseUrl = "http://your-ocr-server:5000",
+    baseUrl = "http://your-ocr-server:21600",
     retryTimes = 3
 )
 ```

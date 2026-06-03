@@ -32,7 +32,7 @@ import cn.edu.shmtu.cas.sync.incrementalSync
 import kotlinx.coroutines.runBlocking
 
 fun main() = runBlocking {
-    val epay = EpayAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000"))
+    val epay = EpayAuth(RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600"))
     val r = epay.submitLogin("学号", "密码")
     check(r.getOrThrow() is cn.edu.shmtu.cas.session.LoginSubmitResult.Success)
 
@@ -66,7 +66,7 @@ import kotlinx.coroutines.runBlocking;
 public class CasJavaBridge {
     public static void main(String[] args) {
         runBlocking(() -> {
-            EpayAuth epay = new EpayAuth(new RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000"));
+            EpayAuth epay = new EpayAuth(new RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600"));
             LoginSubmitResult r = epay.submitLogin(args[0], args[1]).getOrThrow();
             // ...
         });

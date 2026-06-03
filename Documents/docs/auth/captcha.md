@@ -101,7 +101,7 @@ val answer = resolver.resolve(imageData).getOrThrow()
 RESTful HTTP OCR。
 
 ```kotlin
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000", retryTimes = 3)
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600", retryTimes = 3)
 ```
 
 请求格式：
@@ -148,7 +148,7 @@ val resolver = ExprCaptchaResolver { _ -> "3+5=8" }
 ## 完整示例
 
 ```kotlin
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600")
 val epay = EpayAuth(resolver)
 
 val challenge = epay.prepareChallenge().getOrThrow()
@@ -164,5 +164,5 @@ epay.submitLogin("学号", "密码", finalAnswer, challenge.execution)
 
 - 项目地址：[shmtu-cas-ocr-server](https://github.com/a645162/shmtu-cas-ocr-server)
 - 模型训练：[shmtu-cas-ocr-model](https://github.com/a645162/shmtu-cas-ocr-model)
-- 默认端口：TCP `21601`、HTTP `5000`
+- 默认端口：TCP `21601`、HTTP `21600`
 - 支持 CPU 与 Vulkan GPU

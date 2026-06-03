@@ -35,7 +35,7 @@ Kotlin 2.2 + Gradle 8 + JVM toolchain 17。运行 Android 库需要 minSdk 21+�
 [shmtu-cas-ocr-server](https://github.com/a645162/shmtu-cas-ocr-server) 是独立项目，提供：
 
 - TCP 模式：默认端口 `21601`
-- HTTP 模式：默认端口 `5000`
+- HTTP 模式：默认端口 `21600`
 - 支持 CPU 和 Vulkan GPU 两种构建目标
 
 ### 如何修改 OCR 服务器地址？

@@ -73,7 +73,7 @@ cn.edu.shmtu.cas
 ## 推荐接入方式
 
 ```kotlin
-val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600")
 val epay = EpayAuth(resolver)
 val r = epay.submitLogin("学号", "密码").getOrThrow()
 check(r is LoginSubmitResult.Success)

@@ -8,7 +8,7 @@ title: 快速开始
 
 - **JDK 17+**（建议 21）：Kotlin 2.2 + Gradle 8+，已开启 JVM toolchain 17
 - **Gradle**：仓库自带 `gradlew`，无需单独安装
-- **OCR 推理服务器**（可选）：如需验证码自动识别，可部署 [shmtu-cas-ocr-server](https://github.com/a645162/shmtu-cas-ocr-server)，TCP 模式默认端口 `21601`、HTTP 模式默认 `5000`
+- **OCR 推理服务器**（可选）：如需验证码自动识别，可部署 [shmtu-cas-ocr-server](https://github.com/a645162/shmtu-cas-ocr-server)，TCP 模式默认端口 `21601`、HTTP 模式默认 `21600`
 
 ## 克隆与构建
 
@@ -52,7 +52,7 @@ import cn.edu.shmtu.cas.sync.incrementalSync
 import kotlinx.coroutines.runBlocking
 
 fun main() = runBlocking {
-    val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:5000")
+    val resolver = RemoteOcrHttpCaptchaResolver("http://127.0.0.1:21600")
     val epay = EpayAuth(resolver)
 
     when (val r = epay.submitLogin("学号", "密码")) {
@@ -99,7 +99,7 @@ val result = epay.submitLogin("学号", "密码", answer, challenge.execution).g
 | 场景 | 解析器 | 默认地址 |
 |------|--------|----------|
 | TCP（局域网/无 Docker） | `RemoteOcrCaptchaResolver` | `127.0.0.1:21601` |
-| HTTP（容器化/可观测） | `RemoteOcrHttpCaptchaResolver` | `http://127.0.0.1:5000` |
+| HTTP（容器化/可观测） | `RemoteOcrHttpCaptchaResolver` | `http://127.0.0.1:21600` |
 | 人工（UI 弹窗） | `ManualCaptchaResolver` | - |
 | 已有 ONNX 模型 | `ExprCaptchaResolver` | - |
 
@@ -108,7 +108,7 @@ val result = epay.submitLogin("学号", "密码", answer, challenge.execution).g
 ```bash
 export SHMTU_OCR_HOST=192.168.1.100
 export SHMTU_OCR_PORT=21601
-export SHMTU_OCR_HTTP_URL=http://192.168.1.100:5000
+export SHMTU_OCR_HTTP_URL=http://192.168.1.100:21600
 ```
 
 ## 平台选择
