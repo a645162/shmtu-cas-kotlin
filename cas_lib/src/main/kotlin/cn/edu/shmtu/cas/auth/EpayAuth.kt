@@ -261,7 +261,7 @@ class EpayAuth(
             val response = client.newCall(request).execute()
             cookies.addAllFromSetCookieHeaders(response.headers("Set-Cookie"))
             when (response.code) {
-                200 -> cont.resume(Result.success(response.body?.string() ?: ""))
+                200 -> cont.resume(Result.success(response.body.string()))
                 302 -> cont.resumeWithException(Exception("未登录，需要重新登录"))
                 else -> cont.resumeWithException(Exception("获取账单失败，状态码: ${response.code}"))
             }

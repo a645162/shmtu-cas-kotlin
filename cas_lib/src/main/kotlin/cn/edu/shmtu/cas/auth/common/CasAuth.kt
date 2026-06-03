@@ -79,7 +79,7 @@ class CasAuth {
             val response = client.newCall(request).execute()
 
             return if (response.code == 200) {
-                val htmlCode = response.body?.string() ?: ""
+                val htmlCode = response.body.string()
                 val document: Document = Jsoup.parse(htmlCode)
                 val element: Element? = document.selectFirst("input[name=execution]")
                 val value: String = element?.attr("value") ?: ""
@@ -135,7 +135,7 @@ class CasAuth {
                 log.info("[CasAuth] casLogin: success (302), location=${location.take(60)}...")
                 Triple(responseCode, location, newCookie)
             } else {
-                val htmlCode = response.body?.string() ?: ""
+                val htmlCode = response.body.string()
                 val document: Document = Jsoup.parse(htmlCode)
                 val element: Element? = document.selectFirst("#loginErrorsPanel")
                 val errorText = element?.text() ?: ""

@@ -34,4 +34,23 @@ data class BillItem(
      */
     override fun toString(): String =
         "$dateTimeFormat | $billType | $targetUser | $amount | $status"
+
+    /**
+     * CSV 字段访问器（对齐 Rust 的 get_field）
+     */
+    fun getField(name: String): String = when (name) {
+        "date_str" -> dateStr
+        "time_str" -> timeStr
+        "time_str_formatted" -> timeStrFormat
+        "date_time_formatted" -> dateTimeFormat
+        "timestamp" -> timestamp.toString()
+        "item_type" -> billType
+        "number" -> transactionNo
+        "target_user" -> targetUser
+        "money_str" -> amount
+        "money" -> String.format("%.2f", money)
+        "method" -> paymentMethod
+        "status", "status_str" -> status.name
+        else -> ""
+    }
 }

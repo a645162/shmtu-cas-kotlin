@@ -235,7 +235,7 @@ class WechatAuth(
             val response = client.newCall(request).execute()
             cookies.addAllFromSetCookieHeaders(response.headers("Set-Cookie"))
             when (response.code) {
-                200 -> cont.resume(Result.success(response.body?.string() ?: ""))
+                200 -> cont.resume(Result.success(response.body.string()))
                 302 -> {
                     response.header("Location")?.let { this.loginWUrl = it }
                     cont.resumeWithException(Exception("未登录，需要重新登录"))

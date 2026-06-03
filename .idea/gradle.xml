@@ -8,8 +8,8 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/cli" />
-            <option value="$PROJECT_DIR$/lib" />
+            <option value="$PROJECT_DIR$/cas_cli" />
+            <option value="$PROJECT_DIR$/cas_lib" />
           </set>
         </option>
       </GradleProjectSettings>

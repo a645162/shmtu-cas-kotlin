@@ -10,7 +10,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 import java.util.Base64
 
 /**
@@ -47,7 +47,7 @@ class RemoteOcrHttpCaptchaResolver(
     private suspend fun doResolve(imageData: ByteArray): Result<CaptchaAnswer> =
         withContext(Dispatchers.IO) {
             try {
-                val url = URL("$baseUrl/api/ocr")
+                val url = URI("$baseUrl/api/ocr").toURL()
                 val connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -87,7 +87,7 @@ class RemoteOcrHttpCaptchaResolver(
 
     suspend fun healthCheck(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$baseUrl/api/health")
+            val url = URI("$baseUrl/api/health").toURL()
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000

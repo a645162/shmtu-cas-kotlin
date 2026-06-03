@@ -16,7 +16,7 @@ import sys
 def main():
     # 传递所有命令行参数给 Gradle run 任务
     args = sys.argv[1:]
-    cmd = ["./gradlew", ":cli:run", f"--args={' '.join(args)}" if args else ""]
+    cmd = ["./gradlew", ":cas_cli:run", f"--args={' '.join(args)}" if args else ""]
     cmd = [c for c in cmd if c]  # 去掉空字符串
     result = subprocess.run(cmd)
     sys.exit(result.returncode)

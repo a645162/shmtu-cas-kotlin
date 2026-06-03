@@ -120,7 +120,7 @@ class Captcha {
                     cookie ?: ""
                 }
 
-                return Pair(response.body?.bytes(), returnCookie)
+                return Pair(response.body.bytes(), returnCookie)
             } catch (e: IOException) {
                 println("请求失败：${e.message}")
                 return null

@@ -4,5 +4,5 @@ plugins {
 
 rootProject.name = 'shmtu-cas-kotlin'
 
-include 'lib'
-include 'cli'
+include 'cas_lib'
+include 'cas_cli'
