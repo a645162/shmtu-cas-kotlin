@@ -66,7 +66,8 @@ private fun parseCommonOpts(args: List<String>): CommonOpts {
     var ocrHost = System.getenv("SHMTU_OCR_HOST") ?: "127.0.0.1"
     var ocrPort = System.getenv("SHMTU_OCR_PORT")?.toIntOrNull() ?: 21601
     var ocrServerType = "tcp"
-    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: RemoteOcrHttpCaptchaResolver.DEFAULT_BASE_URL
+    // 先取显式 env, 后面再由 resolveOcrHttpUrl 拼接兜底
+    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: ""
 
     var i = 0
     while (i < args.size) {
@@ -82,7 +83,32 @@ private fun parseCommonOpts(args: List<String>): CommonOpts {
         i++
     }
 
-    return CommonOpts(username, password, captchaMode, ocrHost, ocrPort, ocrServerType, ocrHttpUrl)
+    val finalHttpUrl = resolveOcrHttpUrl(ocrHttpUrl, ocrHost, ocrPort)
+
+    return CommonOpts(username, password, captchaMode, ocrHost, ocrPort, ocrServerType, finalHttpUrl)
+}
+
+/**
+ * 解析最终的 HTTP OCR base URL.
+ *
+ * 优先级:
+ *   1. 命令行显式 `--ocr-http-url` (非空)
+ *   2. 环境变量 `SHMTU_OCR_HTTP_URL` (非空)
+ *   3. 环境变量 `SHMTU_OCR_HOST` (拼接端口, HTTP 端口优先 21600)
+ *   4. 硬编码默认 `http://127.0.0.1:21600`
+ */
+private fun resolveOcrHttpUrl(explicitUrl: String, host: String, tcpPort: Int): String {
+    if (explicitUrl.isNotBlank()) return explicitUrl
+    System.getenv("SHMTU_OCR_HTTP_URL")?.let {
+        if (it.isNotBlank()) return it
+    }
+    if (host.isNotBlank()) {
+        val httpPort = System.getenv("SHMTU_HTTP_PORT")?.toIntOrNull()
+            ?: System.getenv("SHMTU_OCR_PORT")?.toIntOrNull()
+            ?: 21600
+        return "http://$host:$httpPort"
+    }
+    return RemoteOcrHttpCaptchaResolver.DEFAULT_BASE_URL
 }
 
 private fun buildResolver(opts: CommonOpts): CaptchaResolver {
