@@ -223,7 +223,7 @@ private fun cmdCaptchaTest(args: List<String>) {
     var ocrHost = System.getenv("SHMTU_OCR_HOST") ?: "127.0.0.1"
     var ocrPort = System.getenv("SHMTU_OCR_PORT")?.toIntOrNull() ?: 21601
     var ocrServerType = "tcp"
-    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: RemoteOcrHttpCaptchaResolver.DEFAULT_BASE_URL
+    var ocrHttpUrl = System.getenv("SHMTU_OCR_HTTP_URL") ?: ""
 
     var i = 0
     while (i < args.size) {
@@ -235,6 +235,8 @@ private fun cmdCaptchaTest(args: List<String>) {
         }
         i++
     }
+
+    val finalHttpUrl = resolveOcrHttpUrl(ocrHttpUrl, ocrHost, ocrPort)
 
     when (ocrServerType) {
         "http" -> runBlocking {
@@ -250,10 +252,10 @@ private fun cmdCaptchaTest(args: List<String>) {
                 return@runBlocking
             }
 
-            val resolver = RemoteOcrHttpCaptchaResolver(ocrHttpUrl)
+            val resolver = RemoteOcrHttpCaptchaResolver(finalHttpUrl)
             val ok = resolver.healthCheck()
             if (!ok) {
-                println("HTTP OCR 服务不可达: $ocrHttpUrl")
+                println("HTTP OCR 服务不可达: $finalHttpUrl")
                 return@runBlocking
             }
 
