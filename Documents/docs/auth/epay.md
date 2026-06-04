@@ -33,6 +33,9 @@ val result: LoginSubmitResult = epay.submitLogin(
 val html: String = epay.getBill(pageNo = 1, billType = BillType.ALL).getOrThrow()
 ```
 
+> 手动验证码模式下，`validateCode` 与 `execution` 必须来自**同一次** `prepareChallenge()`。
+> 不要在用户已经看到验证码图片后再次调用 `prepareChallenge()`，否则新的 `execution` 与旧图片不匹配，提交会失败。
+
 ## 一键登录
 
 如果 `EpayAuth` 构造时注入了 `CaptchaResolver`，可走 `submitLogin(user, pass, maxRetries = 5)` 一步到位：
@@ -105,6 +108,35 @@ val result: SyncResult = incrementalSync(
 ```
 
 详见 [BillSync](/api/bill-sync)。
+
+## Android 宿主的推荐续传方式
+
+如果宿主 UI 采用“库抛出验证码需求，页面弹窗输入，再继续同步”的方式，推荐流程如下：
+
+1. `probeLogin()` / `syncAccount(...)` 发现需要验证码
+2. 保存当前 challenge 的：
+   - `captchaImage`
+   - `execution`
+   - `username`
+   - `password`
+3. 用户输入验证码后，调用：
+
+```kotlin
+val result = epay.submitLogin(
+    username = savedUsername,
+    password = savedPassword,
+    validateCode = userAnswer,
+    execution = savedExecution
+).getOrThrow()
+```
+
+4. 成功后立刻持久化：
+
+```kotlin
+prefs.edit().putString("cookies", epay.extractSession()).apply()
+```
+
+这样短时间内继续同步账单时，`restoreSession(...)` 可直接复用 cookies，通常不需要重新登录。
 
 ## Cookie 管理
 

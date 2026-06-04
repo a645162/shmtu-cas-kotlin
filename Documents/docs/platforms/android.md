@@ -246,6 +246,83 @@ class SyncViewModel(private val repo: BillRepository) : ViewModel() {
 }
 ```
 
+## 5.1 手动验证码 + 续传的 Android 推荐模式
+
+如果你希望 Android 页面自行处理验证码弹窗，而不是把验证码识别完全交给 `CaptchaResolver`，建议按下面的职责拆分：
+
+- `prepareChallenge()`：只负责拿图片和 `execution`
+- UI 层：展示图片、收集用户输入
+- `submitLogin(username, password, code, execution)`：只负责提交当前 challenge
+- 成功后：立刻 `extractSession()` 并存入 `EncryptedSharedPreferences`
+
+示例：
+
+```kotlin
+data class PendingLogin(
+    val accountId: Long,
+    val username: String,
+    val password: String,
+    val execution: String,
+    val captchaImage: ByteArray,
+)
+
+suspend fun beginManualLogin(epay: EpayAuth, username: String, password: String): PendingLogin {
+    val challenge = epay.prepareChallenge().getOrThrow()
+    return PendingLogin(
+        accountId = 1L,
+        username = username,
+        password = password,
+        execution = challenge.execution,
+        captchaImage = challenge.captchaImage,
+    )
+}
+
+suspend fun continueManualLogin(epay: EpayAuth, pending: PendingLogin, answer: String) {
+    val result = epay.submitLogin(
+        username = pending.username,
+        password = pending.password,
+        validateCode = answer,
+        execution = pending.execution,
+    ).getOrThrow()
+
+    require(result is LoginSubmitResult.Success)
+    saveSessionJson(epay.extractSession())
+}
+```
+
+注意：
+
+- **不要**在用户输入验证码前重新调用 `prepareChallenge()`。
+- **不要**只保存验证码图片而丢掉 `execution`。
+- 成功登录后把 cookies 持久化，后续短时间同步账单通常可以直接复用。
+
+## 5.2 全量同步与增量同步
+
+Android 端如需按时间范围选择同步，推荐统一走 `SyncOptions` 工厂方法：
+
+```kotlin
+val incremental = SyncOptions.incremental(SyncRangePreset.Month)
+val full = SyncOptions.full(SyncRangePreset.All)
+```
+
+单账号完整状态机入口：
+
+```kotlin
+val result = syncAccount(
+    auth = epay,
+    store = RoomBillStore(dao),
+    context = AccountContext(accountId = "10001", accountLabel = "本科"),
+    resolver = null, // 手动验证码场景
+    username = username,
+    password = password,
+    options = full,
+    fullSync = true,
+    onProgress = { progress -> Log.d("BillSync", progress.toMessage()) }
+)
+```
+
+如果 `resolver == null` 且需要验证码，库会抛 `ManualCaptchaRequiredException`，由宿主页面接住后自行弹窗续传。
+
 ## 6. 加密存储 Cookie（强烈建议）
 
 把 `epay.extractSession()` 的 JSON 存进 `EncryptedSharedPreferences`：

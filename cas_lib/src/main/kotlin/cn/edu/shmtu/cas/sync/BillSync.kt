@@ -219,8 +219,10 @@ data class AccountSyncJob(
     val store: BillStore,
     /** null = 手动模式（抛 ManualCaptchaRequiredException 由 UI 处理） */
     val resolver: CaptchaResolver? = null,
-    /** null = 增量；非 null = 全量 */
-    val range: SyncRangePreset? = null,
+    /** 调用方显式传入同步选项，避免 UI 选择的范围在包装层丢失。 */
+    val options: SyncOptions = SyncOptions.incremental(SyncRangePreset.Month),
+    /** true = 全量同步；false = 增量同步。 */
+    val fullSync: Boolean = false,
 )
 
 /**
@@ -298,12 +300,12 @@ suspend fun syncAccount(
     store: BillStore,
     context: AccountContext,
     resolver: CaptchaResolver?,
-    range: SyncRangePreset? = null,
+    username: String = "",
+    password: String = "",
+    options: SyncOptions = SyncOptions.incremental(SyncRangePreset.Month),
+    fullSync: Boolean = false,
     onProgress: (SyncProgress) -> Unit = {},
 ): Result<SyncResult> {
-    val baseOptions = if (range == null) SyncOptions.incremental(SyncRangePreset.Month)
-                      else SyncOptions.full(range)
-
     fun emit(status: SyncStatus, newCount: Int = 0, pagesFetched: Int = 0, totalNew: Int = 0) {
         onProgress(SyncProgress(
             accountId = context.accountId,
@@ -358,7 +360,7 @@ suspend fun syncAccount(
             }
             // 自动登录流程：拿用户名+密码由调用方在 resolver 里封好；这里仅占位
             val captcha = resolveResult.getOrThrow().intoFinalAnswer().value
-            val submitResult = auth.submitLogin("", "", captcha, challenge.execution)
+            val submitResult = auth.submitLogin(username, password, captcha, challenge.execution)
             if (submitResult.isFailure) {
                 val err = submitResult.exceptionOrNull() ?: Exception("提交登录失败")
                 emit(SyncStatus.Failed(err.message ?: "提交登录失败"))
@@ -382,7 +384,7 @@ suspend fun syncAccount(
         }
 
         // 4. 翻页同步
-        runSync(auth, store, baseOptions, onProgress, fullSync = range != null)
+        runSync(auth, store, options, onProgress, fullSync = fullSync)
     } catch (e: ManualCaptchaRequiredException) {
         emit(SyncStatus.GettingCaptcha)
         throw e
@@ -435,7 +437,10 @@ suspend fun syncAccountsParallel(
                         totalAccounts = totalAccounts,
                     ),
                     resolver = job.resolver,
-                    range = job.range,
+                    username = "",
+                    password = "",
+                    options = job.options,
+                    fullSync = job.fullSync,
                     onProgress = contextualProgress,
                 )
                 AccountSyncResult(job.context, result)
