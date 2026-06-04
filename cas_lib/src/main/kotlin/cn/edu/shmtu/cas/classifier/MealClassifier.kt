@@ -75,6 +75,12 @@ class MealClassifier(
             return MealClassifier(rules)
         }
 
+        /**
+         * 从 rules.toml 合并文件(同时含 type/position/schedule)加载,
+         * 与 [fromToml] 等价 — Tauri 端 4 个文件共享同一解析入口。
+         */
+        fun fromRulesToml(tomlStr: String): MealClassifier = fromToml(tomlStr)
+
         private fun slotOf(raw: Any?): MealSlot? {
             @Suppress("UNCHECKED_CAST")
             val m = raw as? Map<String, Any?> ?: return null
