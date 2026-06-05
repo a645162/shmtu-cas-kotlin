@@ -7,9 +7,4 @@ plugins {
 subprojects {
     group = System.getenv("GROUP") ?: 'cn.edu.shmtu.cas'
     version = System.getenv("VERSION") ?: '1.0-SNAPSHOT'
-
-    repositories {
-        google()
-        mavenCentral()
-    }
 }
