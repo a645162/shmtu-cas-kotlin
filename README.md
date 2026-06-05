@@ -204,3 +204,116 @@ val auth = EpayAuth(resolver)
 implementation("com.github.a645162.shmtu-cas-kotlin:shmtu-cas-jvm:<tag>")
 implementation("com.github.a645162.shmtu-cas-kotlin:shmtu-cas-android:<tag>")
 ```
+
+## 账单分类器 (`classifier` 包)
+
+`cn.edu.shmtu.cas.classifier` 包下提供 4 个核心类, 把对方账户 / 消费类型字符串映射到分类标签、楼栋/房间、用餐时段。
+与 Tauri 端 `Data/database/bill/*.toml` 规则完全对齐。
+
+### 1. 类型分类器
+
+```kotlin
+import cn.edu.shmtu.cas.classifier.BillClassifier
+import cn.edu.shmtu.cas.classifier.BillCategory
+
+val typeToml = """
+    [type.deposit]
+    name = "充值"
+    match_field = "item_type"
+    match_names = ["中行云充值", "微信充值"]
+    [type.canteen]
+    name = "食堂"
+    match_field = "target_user"
+    match_targets = ["食堂", "餐厅"]
+""".trimIndent()
+
+val classifier = BillClassifier.fromToml(typeToml)
+val cat: BillCategory = classifier.classify("中行云充值", "A食堂1楼大餐厅")
+// cat = BillCategory.DEPOSIT (命中 match_field="item_type" 的 match_names)
+val key: String = classifier.classifyKey("消费", "B食堂1楼")
+// key = "canteen" (命中 match_field="target_user" 的 match_targets)
+```
+
+13 个内置分类：`deposit` / `electricity` / `bath` / `hot_water` / `cake` / `canteen` / `library` / `hospital` / `shop` / `laundry` / `network` / `transport` / `other`。每个枚举带 `displayName`（中文）和 `emoji`。
+
+### 2. 位置翻译器
+
+```kotlin
+import cn.edu.shmtu.cas.classifier.PositionTranslator
+
+val posToml = """
+    [position]
+    field = "target_user"
+    [position.keywords."A食堂1楼大餐厅"]
+    building = "海馨楼"
+    room = "海馨第1食堂"
+""".trimIndent()
+
+val translator = PositionTranslator.fromToml(posToml)
+val info = translator.translate("A食堂1楼大餐厅")
+// info = PositionInfo(position = "海馨楼", room = "海馨第1食堂")
+```
+
+匹配规则：先 `trim` 后精确 key 匹配，失败后扫描所有 key 找第一个"被 target_user 包含"。
+
+### 3. 用餐时段分类器
+
+```kotlin
+import cn.edu.shmtu.cas.classifier.MealClassifier
+
+val scheduleToml = """
+    [[schedule]]
+    [schedule.valid_date]
+    start_date = "2019.9.1"
+    end_date = "now"
+    [schedule.timetable.breakfast]
+    name = "早餐"
+    start_time = "6:30"
+    end_time = "8:30"
+    [schedule.timetable.lunch]
+    name = "午餐"
+    start_time = "10:45"
+    end_time = "12:30"
+""".trimIndent()
+
+val mealClassifier = MealClassifier.fromToml(scheduleToml)
+val meal: String? = mealClassifier.classify(timestamp = 1710475200)
+// meal = "午餐" (12:00 落在 10:45-12:30 区间)
+```
+
+匹配规则：遍历 `[[schedule]]` 段选日期落在 `valid_date` 范围, 时段按 `start_time ≤ time < end_time`（左闭右开）。
+
+### 4. 极简 TOML 解析器
+
+`TomlLightweight` 是自实现的极简 TOML 解析器（无第三方依赖），支持以下子集：
+
+- 表格头 `[a.b]` / 数组表格头 `[[a]]`
+- 字符串字面量 `"..."` / `'...'`（支持转义）
+- 数组 `[a, b, c]`
+- 布尔字面量 `true` / `false`
+- 数字字面量 / 时间字符串（以 String 原样返回）
+- 注释 `# ...`（字符串外）
+- 嵌套 key 段 `"with.dots"`
+
+```kotlin
+import cn.edu.shmtu.cas.classifier.TomlLightweight
+
+val parsed: Map<String, Any?> = TomlLightweight.parse(rulesToml)
+val typeRules = parsed["type"] as Map<String, Any?>
+val depositRule = typeRules["deposit"] as Map<String, Any?>
+val name: String = depositRule["name"] as String
+// name = "充值"
+```
+
+### 5. 加载入口：合并 rules.toml
+
+Tauri 端使用合并的 `rules.toml`（含 type / position / schedule 三段）做单文件加载：
+
+```kotlin
+val rulesClassifier = BillClassifier.fromRulesToml(rulesToml)
+val rulesTranslator = PositionTranslator.fromRulesToml(rulesToml)
+val rulesMeal = MealClassifier.fromRulesToml(rulesToml)
+// 三个分类器共享同一份 TOML 字符串, 各自只关心自己段
+```
+
+详见仓库根 `Documents/docs/toml-format.md`（TOML 字段规范）和 `classifier.md`（4 个分类器详解）。
