@@ -110,11 +110,10 @@ class BillClassifier(
             val typeMap = (root["type"] as? Map<String, Any?>) ?: emptyMap()
             val internal = LinkedHashMap<String, InternalRule>(typeMap.size)
             for ((k, raw) in typeMap) {
-                @Suppress("UNCHECKED_CAST")
-                val m = raw as Map<String, Any?>
+                val m = raw as? Map<*, *> ?: continue
                 val field = (m["match_field"] as? String) ?: "item_type"
-                val names = (m["match_names"] as? List<String>) ?: emptyList()
-                val targets = (m["match_targets"] as? List<String>) ?: emptyList()
+                val names = (m["match_names"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+                val targets = (m["match_targets"] as? List<*>)?.filterIsInstance<String>().orEmpty()
                 internal[k] = InternalRule(field, names, targets)
             }
             return BillClassifier(internal)
