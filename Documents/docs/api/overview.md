@@ -29,7 +29,6 @@ cn.edu.shmtu.cas
 ├── classifier
 │   ├── BillCategory              # enum
 │   ├── BillClassifier
-│   ├── CategoryRule
 │   ├── PositionTranslator
 │   └── PositionInfo
 ├── datatype

@@ -23,7 +23,7 @@ Kotlin/JVM 库，导出包 `cn.edu.shmtu.cas.*`，包含全部业务代码。是
 | `parser` | `BillParser`、`BillParseResult`、`HotWaterParser`、`CsvExporter` |
 | `sync` | `BillStore`、`SyncOptions`、`SyncResult`、`SyncProgress`、`incrementalSync` |
 | `session` | `SessionProbe`、`LoginSubmitResult`、`LoginChallenge` |
-| `classifier` | `BillClassifier`、`BillCategory`、`CategoryRule`、`PositionTranslator`、`PositionInfo` |
+| `classifier` | `BillClassifier`、`BillCategory`、`PositionTranslator`、`PositionInfo` |
 
 ## `cas_cli`
 

@@ -1,7 +1,6 @@
 package cn.edu.shmtu.cas.classifier
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 @Serializable
 enum class BillCategory {
@@ -64,22 +63,6 @@ enum class BillCategory {
 }
 
 /**
- * 类型分类规则 — JSON 版(向后兼容)。
- *
- * 字段:
- *   - name: 关键词数组,匹配 bill.item_type
- *   - target: 关键词数组,匹配 bill.target_user
- *
- * 注意:旧版语义会把 name 同时拿去匹配 item_type / target_user,
- *   这与 Tauri `match_field` 互斥语义不一致(已弃用,改用 [fromToml])。
- */
-@Serializable
-data class CategoryRule(
-    val name: List<String> = emptyList(),
-    val target: List<String> = emptyList()
-)
-
-/**
  * 内部统一表示,无论 JSON 还是 TOML 加载,最终都规范化成这种结构。
  * matchField 决定 keyword 数组对应 bill 的哪一列(item_type | target_user),
  * 与 Tauri `from_toml` 行为完全一致。
@@ -115,26 +98,6 @@ class BillClassifier(
     }
 
     companion object {
-        private val json = Json { ignoreUnknownKeys = true }
-
-        /**
-         * 旧版 JSON 加载(保持向后兼容,语义同 Tauri BillClassifier.from_json):
-         *   name 数组去匹配 item_type, target 数组去匹配 target_user,
-         *   两组互不越界,与 Tauri `from_toml` 行为一致。
-         */
-        fun fromJson(jsonStr: String): BillClassifier {
-            val map = json.decodeFromString<Map<String, CategoryRule>>(jsonStr)
-            val internal = LinkedHashMap<String, InternalRule>(map.size)
-            for ((k, v) in map) {
-                internal[k] = InternalRule(
-                    matchField = if (v.name.isNotEmpty()) "item_type" else "target_user",
-                    matchNames = v.name,
-                    matchTargets = v.target
-                )
-            }
-            return BillClassifier(internal)
-        }
-
         /**
          * 从 Tauri 兼容的 TOML 字符串加载,完全对齐 Rust `from_toml`:
          *   - 顶层 [type.X] 段
@@ -200,4 +163,29 @@ class BillClassifier(
     }
 
     fun ruleCount(): Int = categories.size
+
+    /**
+     * 暴露给 UI 的规则详情(只读),用于设置页「查看当前规则」折叠区。
+     * 返回: 内部 category key → (matchField, matchNames, matchTargets, displayName)
+     */
+    fun getAllRules(): List<RuleSummary> = categories.map { (key, rule) ->
+        RuleSummary(
+            key = key,
+            displayName = displayNameOf(key),
+            matchField = rule.matchField,
+            matchNames = rule.matchNames,
+            matchTargets = rule.matchTargets
+        )
+    }
+}
+
+data class RuleSummary(
+    val key: String,
+    val displayName: String,
+    val matchField: String,
+    val matchNames: List<String>,
+    val matchTargets: List<String>
+) {
+    /** 该规则命中的总关键词数(name + target 数组) */
+    val totalKeywords: Int get() = matchNames.size + matchTargets.size
 }

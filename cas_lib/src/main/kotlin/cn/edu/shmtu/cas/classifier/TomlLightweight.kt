@@ -20,8 +20,7 @@ object TomlLightweight {
 
     fun parse(text: String): Map<String, Any?> {
         val root = LinkedHashMap<String, Any?>()
-        val stack = ArrayDeque<TableScope>()
-        stack.addLast(PlainTableScope(root))
+        var currentScope: TableScope = PlainTableScope(root)
 
         val lines = text.lines()
         var i = 0
@@ -34,13 +33,11 @@ object TomlLightweight {
             when {
                 line.startsWith("[[") && line.endsWith("]]") -> {
                     val path = parseDottedKey(line.substring(2, line.length - 2).trim())
-                    val scope = pushArrayTable(stack, path)
-                    stack.addLast(scope)
+                    currentScope = pushArrayTable(root, path)
                 }
                 line.startsWith("[") && line.endsWith("]]") == false && line.endsWith("]") -> {
                     val path = parseDottedKey(line.substring(1, line.length - 1).trim())
-                    val scope = pushTable(stack, path)
-                    stack.addLast(scope)
+                    currentScope = pushTable(root, path)
                 }
                 line.contains("=") -> {
                     val eqIdx = line.indexOf('=')
@@ -48,12 +45,11 @@ object TomlLightweight {
                     val valueRaw = line.substring(eqIdx + 1).trim()
                     val key = parseKeySegment(keyRaw)
                     val value = parseValue(valueRaw)
-                    val current = stack.last()
-                    require(current !is ArrayTableScope || current.firstKey == null) {
+                    require(currentScope !is ArrayTableScope || currentScope.firstKey == null) {
                         "在 [[array]] 表内赋值的 key 必须是数组的第一个字段(line=$line)"
                     }
-                    if (current is ArrayTableScope) current.firstKey = key
-                    current.map[key] = value
+                    if (currentScope is ArrayTableScope) currentScope.firstKey = key
+                    currentScope.map[key] = value
                 }
                 else -> throw TomlParseException("无法识别的 TOML 行: $line")
             }
@@ -74,7 +70,43 @@ object TomlLightweight {
     }
 
     private fun parseDottedKey(dotted: String): List<String> {
-        return dotted.split('.').map { parseKeySegment(it) }
+        val segments = mutableListOf<String>()
+        val current = StringBuilder()
+        var inQuoted = false
+        var quoteCh = ' '
+        var escape = false
+
+        for (ch in dotted) {
+            if (escape) {
+                current.append(ch)
+                escape = false
+                continue
+            }
+            if (inQuoted) {
+                current.append(ch)
+                when {
+                    quoteCh == '"' && ch == '\\' -> escape = true
+                    ch == quoteCh -> inQuoted = false
+                }
+                continue
+            }
+            when (ch) {
+                '"', '\'' -> {
+                    inQuoted = true
+                    quoteCh = ch
+                    current.append(ch)
+                }
+                '.' -> {
+                    segments.add(parseKeySegment(current.toString()))
+                    current.setLength(0)
+                }
+                else -> current.append(ch)
+            }
+        }
+        if (current.isNotEmpty()) {
+            segments.add(parseKeySegment(current.toString()))
+        }
+        return segments
     }
 
     /**
@@ -180,12 +212,9 @@ object TomlLightweight {
         var firstKey: String? = null
     }
 
-    private fun pushTable(stack: ArrayDeque<TableScope>, path: List<String>): TableScope {
+    private fun pushTable(root: LinkedHashMap<String, Any?>, path: List<String>): TableScope {
         var current: Any? = null
-        var parentMap: LinkedHashMap<String, Any?>? = null
-        val iter = stack.iterator()
-        // 找到当前最内层 map 作为起点
-        if (stack.isNotEmpty()) parentMap = stack.last().map
+        var parentMap: LinkedHashMap<String, Any?>? = root
         for (seg in path) {
             current = parentMap?.get(seg)
             if (current == null) {
@@ -208,10 +237,9 @@ object TomlLightweight {
         return PlainTableScope(parentMap!!)
     }
 
-    private fun pushArrayTable(stack: ArrayDeque<TableScope>, path: List<String>): TableScope {
+    private fun pushArrayTable(root: LinkedHashMap<String, Any?>, path: List<String>): TableScope {
         var current: Any? = null
-        var parentMap: LinkedHashMap<String, Any?>? = null
-        if (stack.isNotEmpty()) parentMap = stack.last().map
+        var parentMap: LinkedHashMap<String, Any?>? = root
         for ((idx, seg) in path.withIndex()) {
             val isLast = idx == path.size - 1
             if (isLast) {

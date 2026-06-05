@@ -153,4 +153,8 @@ class MealClassifier(
         val endOk = if (valid.endDate == "now") true else current <= valid.endDate
         return startOk && endOk
     }
+
+    fun ruleCount(): Int = rules.size
+
+    fun getAllRules(): List<ScheduleRule> = rules
 }

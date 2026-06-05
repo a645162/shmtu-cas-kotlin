@@ -1,7 +1,6 @@
 package cn.edu.shmtu.cas.classifier
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 @Serializable
 data class PositionInfo(
@@ -9,25 +8,11 @@ data class PositionInfo(
     val room: String
 )
 
-@Serializable
-private data class PositionRuleFile(
-    val field: String = "target",
-    val keywords: Map<String, PositionInfo> = emptyMap()
-)
-
 class PositionTranslator private constructor(
     private val keywords: Map<String, PositionInfo>
 ) {
 
     companion object {
-        private val json = Json { ignoreUnknownKeys = true }
-
-        /** 旧版 JSON 加载,保持向后兼容 */
-        fun fromJson(jsonStr: String): PositionTranslator {
-            val rule = json.decodeFromString<PositionRuleFile>(jsonStr)
-            return PositionTranslator(rule.keywords)
-        }
-
         /**
          * 从 Tauri 兼容的 TOML 字符串加载:
          *   - [position] 段(field 字段,仅占位说明用)
@@ -60,12 +45,27 @@ class PositionTranslator private constructor(
      * 与 Tauri `translate` 行为一致:
      *   1) 精确匹配 (trim 后)
      *   2) 模糊匹配:target_user 是否包含任一 keyword
+     *
+     * 可选参数 [matchTrace] — 若非 null,函数在内部命中时回调 (mode, keyword, info),
+     *   mode ∈ {"EXACT", "FUZZY"},方便上层 (app 模块) 打印 Log.d 定位翻译路径。
+     *   不传则零开销,不影响 lib 单元测试。
      */
-    fun translate(targetUser: String): PositionInfo? {
+    fun translate(
+        targetUser: String,
+        matchTrace: ((mode: String, keyword: String, info: PositionInfo) -> Unit)? = null
+    ): PositionInfo? {
         val trimmed = targetUser.trim()
-        keywords[trimmed]?.let { return it }
+        // 1) 精确匹配
+        keywords[trimmed]?.let {
+            matchTrace?.invoke("EXACT", trimmed, it)
+            return it
+        }
+        // 2) 模糊匹配 (按 LinkedHashMap 顺序遍历 — 与 Tauri HashMap 行为大致一致)
         for ((keyword, info) in keywords) {
-            if (trimmed.contains(keyword)) return info
+            if (trimmed.contains(keyword)) {
+                matchTrace?.invoke("FUZZY", keyword, info)
+                return info
+            }
         }
         return null
     }

@@ -91,7 +91,7 @@ probeLogin  →  prepareChallenge  →  submitLogin
 
 - `BillParser` / `HotWaterParser` / `CsvExporter` — 单一职责的 HTML / CSV 处理
 - `SyncOptions` + `incrementalSync` — 核心同步算法，逐页抓取 → `BillStore.contains` 去重 → 连续 N 个空页早停
-- `BillClassifier` / `PositionTranslator` — 关键词规则驱动的语义增强，宿主通过 JSON 注入
+- `BillClassifier` / `PositionTranslator` — 关键词规则驱动的语义增强，宿主通过 TOML 注入
 
 边界：
 

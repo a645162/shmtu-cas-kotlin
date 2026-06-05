@@ -17,49 +17,45 @@ enum class BillCategory {
 
 提供 `fromString(s)`，大小写不敏感，未知值返回 `OTHER`。
 
-## CategoryRule
-
-```kotlin
-@Serializable
-data class CategoryRule(
-    val name: List<String> = emptyList(),
-    val target: List<String> = emptyList()
-)
-```
-
-- `name` — 匹配 `BillItem.billType`（交易名称）
-- `target` — 匹配 `BillItem.targetUser`（对方账户）
-
 ## BillClassifier
 
 ```kotlin
-class BillClassifier(private val categories: Map<String, CategoryRule>) {
+class BillClassifier(...) {
     fun classify(name: String, target: String): BillCategory
     companion object {
-        fun fromJson(jsonStr: String): BillClassifier
+        fun fromToml(tomlStr: String): BillClassifier
+        fun fromRulesToml(tomlStr: String): BillClassifier
     }
 }
 ```
 
-### JSON 规则
+### TOML 规则
 
-```json
-{
-  "deposit":    { "name": ["中行云充值", "微信充值"] },
-  "electricity":{ "name": ["电费"] },
-  "bath":       { "target": ["淋浴", "热水"] },
-  "canteen":    { "target": ["食堂", "餐厅"] }
-}
+```toml
+[type.deposit]
+name = "充值"
+match_field = "item_type"
+match_names = ["中行云充值", "微信充值"]
+
+[type.canteen]
+name = "食堂"
+match_field = "target_user"
+match_targets = ["食堂", "餐厅"]
 ```
 
 ### 使用
 
 ```kotlin
-val classifier = BillClassifier.fromJson("""
-    {
-      "deposit": { "name": ["中行云充值"] },
-      "canteen": { "target": ["食堂"] }
-    }
+val classifier = BillClassifier.fromToml("""
+    [type.deposit]
+    name = "充值"
+    match_field = "item_type"
+    match_names = ["中行云充值"]
+
+    [type.canteen]
+    name = "食堂"
+    match_field = "target_user"
+    match_targets = ["食堂"]
 """.trimIndent())
 
 classifier.classify("中行云充值", "某商户")      // DEPOSIT
@@ -67,7 +63,7 @@ classifier.classify("消费", "海馨楼食堂")         // CANTEEN
 classifier.classify("消费", "未知")               // OTHER
 ```
 
-匹配顺序：先 `name`，后 `target`，命中即返回。
+匹配顺序：按 TOML 文件中的规则顺序遍历，命中即返回。
 
 ## PositionTranslator
 
@@ -87,7 +83,8 @@ class PositionTranslator private constructor(private val keywords: Map<String, P
     fun translate(targetUser: String): PositionInfo?
     fun getAllKeywords(): Map<String, PositionInfo>
     companion object {
-        fun fromJson(jsonStr: String): PositionTranslator
+        fun fromToml(tomlStr: String): PositionTranslator
+        fun fromRulesToml(tomlStr: String): PositionTranslator
     }
 }
 ```
@@ -98,29 +95,35 @@ class PositionTranslator private constructor(private val keywords: Map<String, P
 2. 模糊匹配（`targetUser.contains(keyword)`）
 3. 都不命中 → `null`
 
-### JSON 规则
+### TOML 规则
 
-```json
-{
-  "field": "target",
-  "keywords": {
-    "A食堂1楼大餐厅": { "position": "海馨楼",   "room": "海馨第1食堂" },
-    "淋浴":          { "position": "公共浴室", "room": "浴室" }
-  }
-}
+```toml
+[position]
+field = "target_user"
+
+[position.keywords."A食堂1楼大餐厅"]
+building = "海馨楼"
+room = "海馨第1食堂"
+
+[position.keywords."淋浴"]
+building = "公共浴室"
+room = "浴室"
 ```
 
 ### 使用
 
 ```kotlin
-val translator = PositionTranslator.fromJson("""
-    {
-      "field": "target",
-      "keywords": {
-        "A食堂1楼大餐厅": { "position": "海馨楼", "room": "海馨第1食堂" },
-        "淋浴": { "position": "公共浴室", "room": "浴室" }
-      }
-    }
+val translator = PositionTranslator.fromToml("""
+    [position]
+    field = "target_user"
+
+    [position.keywords."A食堂1楼大餐厅"]
+    building = "海馨楼"
+    room = "海馨第1食堂"
+
+    [position.keywords."淋浴"]
+    building = "公共浴室"
+    room = "浴室"
 """.trimIndent())
 
 val info = translator.translate("A食堂1楼大餐厅")
