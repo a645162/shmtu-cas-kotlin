@@ -50,7 +50,7 @@ class TomlLightweightTest {
         val translator = PositionTranslator.fromToml(positionToml)
         val mealClassifier = MealClassifier.fromToml(scheduleToml)
 
-        assertEquals(19, translator.getAllKeywords().size)
+        assertEquals(22, translator.getAllKeywords().size)
         assertEquals("海联2楼", translator.translate("C食堂2楼")?.room)
         assertEquals(1, mealClassifier.ruleCount())
         assertTrue(
