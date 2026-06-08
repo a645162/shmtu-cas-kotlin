@@ -5,6 +5,8 @@
 用法:
   python scripts/run.py bill -u <学号> -p <密码>
   python scripts/run.py hot-water -u <学号> -p <密码> -c manual
+  python scripts/run.py person-account -u <学号> -p <密码>
+  python scripts/run.py parse-person-account -i <personaccount.html>
   python scripts/run.py captcha-test
   python scripts/run.py help
 """

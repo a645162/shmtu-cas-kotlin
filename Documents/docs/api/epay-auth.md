@@ -163,3 +163,39 @@ if (result is LoginSubmitResult.Success) {
     println("共 ${items.size} 条")
 }
 ```
+
+## 个人账户页
+
+### EPAY_PERSON_ACCOUNT_URL
+
+```kotlin
+companion object {
+    const val EPAY_PERSON_ACCOUNT_URL = "https://ecard.shmtu.edu.cn/epay/personaccount/index"
+}
+```
+
+`/epay/personaccount/index` 端点常量,用于构造请求 URL。
+
+### getPersonAccountHtml
+
+```kotlin
+suspend fun getPersonAccountHtml(): Result<String>
+```
+
+访问 `/epay/personaccount/index` 页面,返回 HTML 字符串。**经验证无需 Referer 头**
+也能获取完整页面内容,只依赖已登录的 epay cookies。
+
+| 状态码 | 行为 |
+|------|------|
+| 200 | `Result.success(html)` |
+| 302 | `Result.failure("未登录或会话已过期...")` |
+| 其他 | `Result.failure("获取个人账户页失败，状态码: ...")` |
+
+通常与 [`PersonAccountParser`](./person-account-parser.md) 配合使用：
+
+```kotlin
+val html = epay.getPersonAccountHtml().getOrThrow()
+val info = PersonAccountParser().parse(html)
+println("${info.realName} (${info.realNameAuthStatus})")
+println("现金: ${info.cashBalanceRaw} 元")
+```
