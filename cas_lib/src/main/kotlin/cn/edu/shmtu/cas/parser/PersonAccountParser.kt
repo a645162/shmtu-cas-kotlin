@@ -15,9 +15,9 @@ import org.jsoup.nodes.Element
  * - 注册时间
  *
  * 基本信息:
- * - 学工号 / 真实姓名 / 性别 / 固话
+ * - 学工号 / 真实姓名 / 性别 / 手机
  * - 证件类型 / 证件号码
- * - 电子邮箱 / 昵称 / 班级 / 手机 / 备注 / 用户类型
+ * - 电子邮箱 / 昵称 / 班级 / 备注 / 用户类型
  */
 data class PersonAccountInfo(
     // 头部
@@ -36,8 +36,7 @@ data class PersonAccountInfo(
     val nickname: String = "",
     val gender: String = "",
     val className: String = "",
-    val mobile: String = "",
-    val fixedLine: String = "",
+    val phoneNum: String = "",
     val idType: String = "",
     val idNumber: String = "",
     val remark: String = "",
@@ -102,8 +101,9 @@ class PersonAccountParser {
             nickname = baseInfoMap["昵称"] ?: "",
             gender = baseInfoMap["性别"] ?: "",
             className = baseInfoMap["班级"] ?: "",
-            mobile = baseInfoMap["手机"] ?: "",
-            fixedLine = baseInfoMap["固话"] ?: "",
+            // 一卡通页面 "手机" 字段常空, 真实手机号放在 "固话" 字段
+            // phoneNum 兼容: 优先取 "手机", 若为空则用 "固话" 的值
+            phoneNum = baseInfoMap["手机"]?.takeIf { it.isNotBlank() } ?: baseInfoMap["固话"] ?: "",
             idType = baseInfoMap["证件类型"] ?: "",
             idNumber = baseInfoMap["证件号码"] ?: "",
             remark = baseInfoMap["备注"] ?: "",
