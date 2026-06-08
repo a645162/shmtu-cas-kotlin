@@ -11,6 +11,7 @@ import cn.edu.shmtu.cas.captcha.RemoteOcrCaptchaResolver
 import cn.edu.shmtu.cas.captcha.RemoteOcrHttpCaptchaResolver
 import cn.edu.shmtu.cas.parser.BillParser
 import cn.edu.shmtu.cas.parser.HotWaterParser
+import cn.edu.shmtu.cas.parser.PersonAccountParser
 import cn.edu.shmtu.cas.session.LoginSubmitResult
 import cn.edu.shmtu.cas.session.SessionProbe
 import kotlinx.coroutines.runBlocking
@@ -37,8 +38,10 @@ fun main(args: Array<String>) {
     when (args[0]) {
         "bill" -> cmdBill(args.drop(1))
         "hot-water" -> cmdHotWater(args.drop(1))
+        "person-account" -> cmdPersonAccount(args.drop(1))
         "captcha-test" -> cmdCaptchaTest(args.drop(1))
         "parse" -> cmdParse(args.drop(1))
+        "parse-person-account" -> cmdParsePersonAccount(args.drop(1))
         "help", "--help", "-h" -> printUsage()
         else -> {
             println("Unknown command: ${args[0]}")
@@ -281,6 +284,101 @@ private fun cmdCaptchaTest(args: List<String>) {
     }
 }
 
+private fun cmdPersonAccount(args: List<String>) {
+    val opts = parseCommonOpts(args)
+    if (opts.username.isBlank() || opts.password.isBlank()) {
+        println("Error: --username and --password are required (or set SHMTU_USER_ID / SHMTU_PASSWORD)")
+        return
+    }
+
+    runBlocking {
+        val auth = EpayAuth(buildResolver(opts))
+        println("正在探测登录状态...")
+
+        val probe = auth.probeLogin()
+        if (probe.isFailure) {
+            println("探测登录状态失败: ${probe.exceptionOrNull()?.message}")
+            return@runBlocking
+        }
+        if (probe.getOrThrow() is SessionProbe.AlreadyLoggedIn) {
+            println("已经登录")
+        } else {
+            val result = auth.submitLogin(opts.username, opts.password)
+            if (result.isFailure) {
+                println("登录异常: ${result.exceptionOrNull()?.message}")
+                return@runBlocking
+            }
+            if (result.getOrThrow() !is LoginSubmitResult.Success) {
+                println("登录失败: ${result.getOrThrow()}")
+                return@runBlocking
+            }
+            println("登录成功")
+        }
+
+        println("正在获取个人账户信息...")
+        val htmlResult = auth.getPersonAccountHtml()
+        if (htmlResult.isFailure) {
+            println("获取个人账户页失败: ${htmlResult.exceptionOrNull()?.message}")
+            return@runBlocking
+        }
+        val info = PersonAccountParser().parse(htmlResult.getOrThrow())
+        printPersonAccount(info)
+    }
+}
+
+private fun cmdParsePersonAccount(args: List<String>) {
+    var inputPath: String? = null
+
+    var i = 0
+    while (i < args.size) {
+        when (args[i]) {
+            "-i", "--input" -> { inputPath = args.getOrElse(++i) { null } }
+        }
+        i++
+    }
+
+    if (inputPath == null) {
+        println("Error: --input is required")
+        return
+    }
+
+    val html = java.io.File(inputPath).readText()
+    val info = PersonAccountParser().parse(html)
+    printPersonAccount(info)
+}
+
+private fun printPersonAccount(info: cn.edu.shmtu.cas.parser.PersonAccountInfo) {
+    println("===== 个人账户信息 =====")
+    println("姓名: ${info.realName}    实名认证: ${info.realNameAuthStatus}")
+    println()
+    println("[资金信息]")
+    println("现金资金: ${info.cashBalanceRaw} 元 (${info.cashBalance})")
+    println()
+    println("[安全信息]")
+    println("安全保护问题: ${info.securityQuestionStatus}")
+    println("注册时间: ${info.registerDate}")
+    println()
+    println("[基本信息]")
+    println("学工号: ${info.studentId}")
+    println("电子邮箱: ${info.email}")
+    println("真实姓名: ${info.realName}")
+    println("昵称: ${info.nickname}")
+    println("性别: ${info.gender}")
+    println("班级: ${info.className}")
+    println("手机: ${info.mobile}")
+    println("固话: ${info.fixedLine}")
+    println("证件类型: ${info.idType}")
+    println("证件号码: ${info.idNumber}")
+    println("备注: ${info.remark}")
+    println("用户类型: ${info.userType}")
+    if (info.csrfToken.isNotEmpty()) {
+        println()
+        println("[CSRF]")
+        println("token: ${info.csrfToken}")
+        println("header: ${info.csrfHeader}")
+    }
+}
+
 private fun cmdParse(args: List<String>) {
     var inputPath: String? = null
 
@@ -319,11 +417,13 @@ private fun printUsage() {
         |  shmtu-cas <command> [options]
         |
         |命令:
-        |  bill          登录CAS并获取账单
-        |  hot-water     登录微信平台并获取宿舍热水状态
-        |  captcha-test  测试验证码OCR
-        |  parse         解析本地HTML账单文件
-        |  help          显示帮助信息
+        |  bill                  登录CAS并获取账单
+        |  hot-water             登录微信平台并获取宿舍热水状态
+        |  person-account        登录一卡通平台并获取个人账户信息(余额/认证/学工号/证件等)
+        |  captcha-test          测试验证码OCR
+        |  parse                 解析本地HTML账单文件
+        |  parse-person-account  解析本地个人账户HTML文件
+        |  help                  显示帮助信息
         |
         |bill 选项:
         |  -u, --username <学号>        用户名 (env: SHMTU_USER_ID)
@@ -337,10 +437,16 @@ private fun printUsage() {
         |hot-water 选项:
         |  同 bill
         |
+        |person-account 选项:
+        |  同 bill
+        |
         |captcha-test 选项:
         |  --ocr-host, --ocr-port, --ocr-server-type, --ocr-http-url
         |
         |parse 选项:
+        |  -i, --input <file>           HTML文件路径
+        |
+        |parse-person-account 选项:
         |  -i, --input <file>           HTML文件路径
     """.trimMargin())
 }

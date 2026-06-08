@@ -27,6 +27,7 @@ class EpayAuth(
     private companion object {
         val log = Logger.getLogger(EpayAuth::class.java.name)
         const val EPAY_BILL_URL = "https://ecard.shmtu.edu.cn/epay/consume/query"
+        const val EPAY_PERSON_ACCOUNT_URL = "https://ecard.shmtu.edu.cn/epay/personaccount/index"
         const val VALIDATE_CODE_ERROR = 401
         const val PASSWORD_ERROR = 402
     }
@@ -288,5 +289,33 @@ class EpayAuth(
             pages.add(html)
         }
         return Result.success(pages)
+    }
+
+    // ========== 个人账户页 ==========
+
+    /**
+     * 访问 `/epay/personaccount/index` 页面。
+     *
+     * 经验证,无需 Referer 也能正常获取完整页面内容;这里只发送 epay 的会话 Cookie
+     * (依赖登录态)即可。需要已登录的 epay cookies。
+     *
+     * @return 成功: Result.success(html 字符串);失败: Result.failure(异常)
+     */
+    suspend fun getPersonAccountHtml(): Result<String> = suspendCoroutine { cont ->
+        val request = Request.Builder()
+            .url(EPAY_PERSON_ACCOUNT_URL)
+            .apply { if (!cookies.isEmpty()) addHeader("Cookie", cookies.get()) }
+            .get()
+            .build()
+
+        try {
+            val response = client.newCall(request).execute()
+            cookies.addAllFromSetCookieHeaders(response.headers("Set-Cookie"))
+            when (response.code) {
+                200 -> cont.resume(Result.success(response.body.string()))
+                302 -> cont.resumeWithException(Exception("未登录或会话已过期，需要重新登录 (302 -> ${response.header("Location")})"))
+                else -> cont.resumeWithException(Exception("获取个人账户页失败，状态码: ${response.code}"))
+            }
+        } catch (e: Exception) { cont.resume(Result.failure(e)) }
     }
 }
