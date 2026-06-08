@@ -5,6 +5,17 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /**
+ * 根据身份证号第 17 位推断性别: 奇数=男性, 偶数=女性, 否则返回 "".
+ */
+fun guessGenderFromIdNumber(idNumber: String): String {
+    if (idNumber.length < 17) return ""
+    val ch = idNumber[16]
+    if (!ch.isDigit()) return ""
+    val digit = ch.digitToInt()
+    return if (digit % 2 == 1) "男性" else "女性"
+}
+
+/**
  * 一卡通个人账户页解析结果
  *
  * 对应 `/epay/personaccount/index` 接口的 HTML。
